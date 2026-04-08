@@ -1,0 +1,26 @@
+{
+    "name": "cubepath/cubepath-php-sdk",
+    "description": "Official PHP SDK for the CubePath Cloud API",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["cubepath", "cloud", "vps", "api", "sdk"],
+    "homepage": "https://cubepath.com",
+    "require": {
+        "php": ">=7.4",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Cubepath\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Cubepath\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}
