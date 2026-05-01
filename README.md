@@ -87,7 +87,7 @@ $task = $client->vps()->create($projectId, [
     'plan_name' => 'gp.small',
     'template_name' => 'debian-12',
     'location_name' => 'us-mia-1',
-    'ssh_key_names' => ['my-key'],
+    'ssh_key_ids' => [12],
     'enable_backups' => true,
 ]);
 
@@ -147,7 +147,7 @@ $task = $client->baremetal()->deploy($projectId, [
     'location_name' => 'us-hou-1',
     'hostname' => 'db-primary',
     'password' => 'secure-password',
-    'ssh_key_names' => ['my-key'],
+    'ssh_key_ids' => [12],
     'os_name' => 'debian-12',
 ]);
 

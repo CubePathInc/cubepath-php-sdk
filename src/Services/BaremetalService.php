@@ -24,7 +24,7 @@ class BaremetalService
      *     @type string $password        Root password
      *     @type string $label           Display label (optional)
      *     @type string $user            Default user (optional)
-     *     @type array  $ssh_key_names   SSH key names (optional)
+     *     @type int[]  $ssh_key_ids     SSH key IDs (optional)
      *     @type string $os_name         OS name (optional)
      *     @type string $disk_layout_name Disk layout (optional)
      * }
@@ -150,7 +150,7 @@ class BaremetalService
      *     @type string $disk_layout_name Disk layout (optional)
      *     @type string $user             Default user (optional)
      *     @type string $hostname         Hostname (optional)
-     *     @type array  $ssh_key_names    SSH key names (optional)
+     *     @type int[]  $ssh_key_ids      SSH key IDs (optional)
      * }
      * @return array
      */

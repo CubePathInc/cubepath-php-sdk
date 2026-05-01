@@ -26,7 +26,7 @@ class VPSService
      *     @type string $location_name  Location (e.g., "us-mia-1")
      *     @type string $label          Display name (optional)
      *     @type int    $network_id     Private network ID (optional)
-     *     @type array  $ssh_key_names  SSH key names (optional)
+     *     @type int[]  $ssh_key_ids    SSH key IDs (optional)
      *     @type string $user           Default user (optional)
      *     @type string $password       Root/admin password (optional, min 8 chars)
      *     @type bool   $ipv4           Add IPv4 (optional)
