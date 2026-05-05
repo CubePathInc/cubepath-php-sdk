@@ -29,7 +29,8 @@ class VPSService
      *     @type int[]  $ssh_key_ids    SSH key IDs (optional)
      *     @type string $user           Default user (optional)
      *     @type string $password       Root/admin password (optional, min 8 chars)
-     *     @type bool   $ipv4           Add IPv4 (optional)
+     *     @type bool   $ipv4           Add IPv4 (optional, default false)
+     *     @type bool   $ipv6           Public IPv6 (optional, default true). Set false to deploy without public IP — requires network_id.
      *     @type bool   $enable_backups Enable auto backups (optional)
      *     @type string $custom_cloudinit  Custom cloud-init YAML (optional)
      *     @type array  $firewall_group_ids  Firewall group IDs (optional)
