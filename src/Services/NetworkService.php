@@ -67,4 +67,44 @@ class NetworkService
     {
         return $this->client->delete("/networks/{$networkId}");
     }
+
+    /**
+     * List static routes for a private network.
+     *
+     * @param int $networkId
+     * @return array
+     */
+    public function listRoutes(int $networkId): array
+    {
+        return $this->client->get("/networks/{$networkId}/routes");
+    }
+
+    /**
+     * Create a static route in a private network.
+     *
+     * @param int   $networkId
+     * @param array $params {
+     *     @type string $destination    CIDR destination (e.g., "192.168.1.0/24")
+     *     @type string $next_hop_type  Next-hop type: "ip", "vps", or "baremetal"
+     *     @type string $next_hop_target  IP address or resource identifier of the next hop
+     *     @type string $description    Human-readable description (optional)
+     * }
+     * @return array Contains route id, detail
+     */
+    public function createRoute(int $networkId, array $params): array
+    {
+        return $this->client->post("/networks/{$networkId}/routes", $params);
+    }
+
+    /**
+     * Delete a static route from a private network.
+     *
+     * @param int    $networkId
+     * @param string $routeId
+     * @return array
+     */
+    public function deleteRoute(int $networkId, string $routeId): array
+    {
+        return $this->client->delete("/networks/{$networkId}/routes/{$routeId}");
+    }
 }

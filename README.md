@@ -356,6 +356,40 @@ $client->kubernetes()->addNodes($cluster['uuid'], $pool['uuid'], 2);
 $client->kubernetes()->installAddon($cluster['uuid'], 'cert-manager');
 ```
 
+### NAT Gateway
+
+```php
+// List available plans
+$plans = $client->natGateway()->listPlans();
+
+// Create a NAT gateway on a private network
+$nat = $client->natGateway()->create([
+    'name' => 'egress-nat',
+    'plan_name' => 'nat.small',
+    'network_id' => $networkId,
+    'project_id' => $projectId,
+]);
+
+// Get details
+$nat = $client->natGateway()->get($nat['uuid']);
+
+// Resize to a larger plan
+$client->natGateway()->resize($nat['uuid'], 'nat.medium');
+
+// Move to another project
+$client->natGateway()->moveToProject($nat['uuid'], $newProjectId);
+
+// Enable delete protection
+$client->natGateway()->protection($nat['uuid'], true);
+
+// Metrics and bandwidth
+$metrics = $client->natGateway()->getMetrics($nat['uuid']);
+$bandwidth = $client->natGateway()->getBandwidthUsage($nat['uuid']);
+
+// Delete
+$client->natGateway()->delete($nat['uuid']);
+```
+
 ### Pricing
 
 ```php

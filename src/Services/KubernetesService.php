@@ -43,13 +43,15 @@ class KubernetesService
      * Create a Kubernetes cluster.
      *
      * @param array $params {
-     *     @type int    $project_id       Project ID
-     *     @type string $name             Cluster name
-     *     @type string $location_name    Location
-     *     @type string $version          K8s version (optional)
-     *     @type bool   $ha_control_plane HA control plane
-     *     @type array  $node_pools       Array of {name, plan, count}
-     *     @type array  $network          Network config (optional)
+     *     @type int    $project_id         Project ID
+     *     @type string $name               Cluster name
+     *     @type string $location_name      Location
+     *     @type string $version            K8s version (optional)
+     *     @type bool   $ha_control_plane   HA control plane
+     *     @type array  $node_pools         Array of {name, plan, count}
+     *     @type array  $network            Network config (optional)
+     *     @type bool   $allocate_ipv4      Allocate a public IPv4 address (optional, default true)
+     *     @type bool   $allocate_ipv6      Allocate a public IPv6 address (optional, default true)
      * }
      * @return array Contains detail, uuid
      */

@@ -18,6 +18,7 @@ use Cubepath\Services\CDNService;
 use Cubepath\Services\KubernetesService;
 use Cubepath\Services\DDoSService;
 use Cubepath\Services\AIGatewayService;
+use Cubepath\Services\NatGatewayService;
 
 class CubepathClient
 {
@@ -56,6 +57,7 @@ class CubepathClient
     private ?KubernetesService $kubernetes = null;
     private ?DDoSService $ddos = null;
     private ?AIGatewayService $aiGateway = null;
+    private ?NatGatewayService $natGateway = null;
 
     public function __construct(string $apiToken, array $options = [])
     {
@@ -402,5 +404,13 @@ class CubepathClient
             $this->aiGateway = new AIGatewayService($this);
         }
         return $this->aiGateway;
+    }
+
+    public function natGateway(): NatGatewayService
+    {
+        if ($this->natGateway === null) {
+            $this->natGateway = new NatGatewayService($this);
+        }
+        return $this->natGateway;
     }
 }

@@ -118,6 +118,7 @@ class CubepathClientTest extends TestCase
         $this->assertInstanceOf(\Cubepath\Services\KubernetesService::class, $client->kubernetes());
         $this->assertInstanceOf(\Cubepath\Services\DDoSService::class, $client->ddos());
         $this->assertInstanceOf(\Cubepath\Services\AIGatewayService::class, $client->aiGateway());
+        $this->assertInstanceOf(\Cubepath\Services\NatGatewayService::class, $client->natGateway());
     }
 
     public function testServicesSingleton(): void
