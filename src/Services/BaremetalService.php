@@ -28,6 +28,7 @@ class BaremetalService
      *     @type int[]  $ssh_key_ids     SSH key IDs (optional)
      *     @type string $os_name         OS name (optional)
      *     @type string $disk_layout_name Disk layout (optional)
+     *     @type int    $network_id      Private network to attach (optional)
      * }
      * @return array Task response
      */
@@ -67,6 +68,126 @@ class BaremetalService
             }
         }
         throw new \RuntimeException("Baremetal server {$baremetalId} not found");
+    }
+
+    /**
+     * List every baremetal server of the organization as a flat list, each with its project.
+     *
+     * @return array List of servers (id, hostname, status, location, os, baremetal_model,
+     *               floating_ips, ssh_keys, project, network, protected, has_ipmi, has_kvm, ...)
+     */
+    public function listAll(): array
+    {
+        return $this->client->get('/baremetal/');
+    }
+
+    /**
+     * List the server models available to deploy, per location.
+     *
+     * @return array Contains locations[]
+     */
+    public function models(): array
+    {
+        return $this->client->get('/baremetal/models');
+    }
+
+    /**
+     * List the operating systems and disk layouts that can be installed on a server.
+     *
+     * @param int $baremetalId
+     * @return array List of options (id, os_name, operating_system, disk_layouts)
+     */
+    public function listOS(int $baremetalId): array
+    {
+        return $this->client->get("/baremetal/os/{$baremetalId}");
+    }
+
+    /**
+     * Get the KVM console access of a server that has one.
+     *
+     * @param int $baremetalId
+     * @return array Contains url, username, password, updated_at
+     */
+    public function kvm(int $baremetalId): array
+    {
+        return $this->client->get("/baremetal/{$baremetalId}/kvm");
+    }
+
+    /**
+     * Enable or disable delete protection.
+     *
+     * @param int  $baremetalId
+     * @param bool $enabled
+     * @return array
+     */
+    public function protection(int $baremetalId, bool $enabled): array
+    {
+        return $this->client->post("/baremetal/{$baremetalId}/protection", [
+            'enabled' => $enabled,
+        ]);
+    }
+
+    /**
+     * Move a baremetal server to another project of the organization.
+     *
+     * @param int $baremetalId
+     * @param int $projectId Destination project ID
+     * @return array
+     */
+    public function moveToProject(int $baremetalId, int $projectId): array
+    {
+        return $this->client->post("/baremetal/{$baremetalId}/move-project", [
+            'project_id' => $projectId,
+        ]);
+    }
+
+    /**
+     * Add SSH keys to a baremetal server.
+     *
+     * @param int   $baremetalId
+     * @param int[] $sshKeyIds
+     * @return array
+     */
+    public function addSSHKeys(int $baremetalId, array $sshKeyIds): array
+    {
+        return $this->client->post("/baremetal/{$baremetalId}/ssh-keys", array_values(array_map('intval', $sshKeyIds)));
+    }
+
+    /**
+     * Remove an SSH key from a baremetal server.
+     *
+     * @param int $baremetalId
+     * @param int $sshKeyId
+     * @return array
+     */
+    public function removeSSHKey(int $baremetalId, int $sshKeyId): array
+    {
+        return $this->client->delete("/baremetal/{$baremetalId}/ssh-keys/{$sshKeyId}");
+    }
+
+    /**
+     * Attach the server to a private network in its location.
+     *
+     * @param int $baremetalId
+     * @param int $networkId
+     * @return array
+     */
+    public function attachNetwork(int $baremetalId, int $networkId): array
+    {
+        return $this->client->post("/baremetal/{$baremetalId}/network", [
+            'network_id' => $networkId,
+        ]);
+    }
+
+    /**
+     * Detach the server from its private network.
+     *
+     * @param int $baremetalId
+     * @return array
+     */
+    public function detachNetwork(int $baremetalId): array
+    {
+        return $this->client->delete("/baremetal/{$baremetalId}/network");
     }
 
     /**

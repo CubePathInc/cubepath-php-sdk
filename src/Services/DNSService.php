@@ -203,4 +203,79 @@ class DNSService
     {
         return $this->client->put("/dns/zones/{$zoneUUID}/soa", $params);
     }
+
+    // --- GeoDNS regions and health checks ---
+
+    /**
+     * List GeoDNS regions.
+     *
+     * @return array List of regions (code, name)
+     */
+    public function listRegions(): array
+    {
+        return $this->client->get('/dns/regions');
+    }
+
+    /**
+     * List the health checks of a zone's records.
+     *
+     * @param string $zoneUUID
+     * @return array List of health checks
+     */
+    public function listHealthChecks(string $zoneUUID): array
+    {
+        return $this->client->get("/dns/zones/{$zoneUUID}/health-checks");
+    }
+
+    /**
+     * Get the health check of a record.
+     *
+     * @param string $zoneUUID
+     * @param string $recordUUID
+     * @return array Contains uuid, record_uuid, name, check_type, target, port, path, expected_status,
+     *               interval_secs, timeout_secs, healthy_threshold, unhealthy_threshold, enabled,
+     *               last_status, last_check_at
+     */
+    public function getHealthCheck(string $zoneUUID, string $recordUUID): array
+    {
+        return $this->client->get("/dns/zones/{$zoneUUID}/records/{$recordUUID}/health-check");
+    }
+
+    /**
+     * Create or replace the health check of a record, for automatic failover. Each check is a
+     * billed add-on.
+     *
+     * @param string $zoneUUID
+     * @param string $recordUUID
+     * @param array  $params {
+     *     @type string $name                Friendly name (required)
+     *     @type string $check_type          "http", "https", "tcp" or "ping" (required)
+     *     @type string $target              Host or IP to probe (optional, default: the record value)
+     *     @type int    $port                Required for tcp
+     *     @type string $path                For http and https
+     *     @type int    $expected_status     (optional, default 200)
+     *     @type int    $interval_secs       (optional, default 60, min 10)
+     *     @type int    $timeout_secs        (optional, default 5)
+     *     @type int    $healthy_threshold   (optional, default 2)
+     *     @type int    $unhealthy_threshold (optional, default 3)
+     *     @type bool   $enabled             (optional, default true)
+     * }
+     * @return array The health check
+     */
+    public function setHealthCheck(string $zoneUUID, string $recordUUID, array $params): array
+    {
+        return $this->client->put("/dns/zones/{$zoneUUID}/records/{$recordUUID}/health-check", $params);
+    }
+
+    /**
+     * Delete the health check of a record.
+     *
+     * @param string $zoneUUID
+     * @param string $recordUUID
+     * @return array
+     */
+    public function deleteHealthCheck(string $zoneUUID, string $recordUUID): array
+    {
+        return $this->client->delete("/dns/zones/{$zoneUUID}/records/{$recordUUID}/health-check");
+    }
 }

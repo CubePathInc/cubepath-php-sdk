@@ -93,6 +93,44 @@ class KubernetesService
         ]);
     }
 
+    /**
+     * Enable or disable delete protection.
+     */
+    public function protection(string $clusterUUID, bool $enabled): array
+    {
+        return $this->client->post("/kubernetes/{$clusterUUID}/protection", [
+            'enabled' => $enabled,
+        ]);
+    }
+
+    /**
+     * Cluster time series (nodes_ready, nodes_total, pods_pending, pods_failed, ...).
+     *
+     * @param string $clusterUUID
+     * @param string $timeRange 1h (default), 3h, 6h, 12h, 24h, 3d, 7d or 30d
+     * @return array Contains start, end, step, metrics (name => list of [timestamp, value])
+     */
+    public function getMetrics(string $clusterUUID, string $timeRange = '1h'): array
+    {
+        return $this->client->get("/kubernetes/{$clusterUUID}/metrics", ['time_range' => $timeRange]);
+    }
+
+    /**
+     * Time series of one node of the cluster.
+     *
+     * @param string $clusterUUID
+     * @param string $nodeName
+     * @param string $timeRange 1h (default), 3h, 6h, 12h, 24h, 3d, 7d or 30d
+     * @return array Contains start, end, step, metrics
+     */
+    public function getNodeMetrics(string $clusterUUID, string $nodeName, string $timeRange = '1h'): array
+    {
+        return $this->client->get(
+            "/kubernetes/{$clusterUUID}/nodes/" . rawurlencode($nodeName) . '/metrics',
+            ['time_range' => $timeRange]
+        );
+    }
+
     public function listLoadBalancers(string $clusterUUID): array
     {
         return $this->client->get("/kubernetes/{$clusterUUID}/loadbalancers");

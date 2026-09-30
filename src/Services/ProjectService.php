@@ -60,6 +60,20 @@ class ProjectService
     }
 
     /**
+     * Rename a project.
+     *
+     * @param int    $projectId
+     * @param string $name
+     * @return array
+     */
+    public function update(int $projectId, string $name): array
+    {
+        return $this->client->put("/projects/{$projectId}", [
+            'name' => $name,
+        ]);
+    }
+
+    /**
      * Delete a project.
      *
      * @param int $projectId

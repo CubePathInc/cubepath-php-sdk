@@ -28,7 +28,7 @@ class SSHKeyService
      *
      * @param string $name   Key name/label
      * @param string $sshKey Public key content (OpenSSH format)
-     * @return array Created SSH key with id, name, ssh_key, fingerprint
+     * @return array Contains detail, ssh_key_id, name, key_type, fingerprint
      */
     public function create(string $name, string $sshKey): array
     {
@@ -47,5 +47,19 @@ class SSHKeyService
     public function delete(int $keyId): array
     {
         return $this->client->delete("/sshkey/{$keyId}");
+    }
+
+    /**
+     * Rename an SSH key.
+     *
+     * @param int    $keyId
+     * @param string $name
+     * @return array Contains detail, sshkey
+     */
+    public function update(int $keyId, string $name): array
+    {
+        return $this->client->put("/sshkey/{$keyId}", [
+            'name' => $name,
+        ]);
     }
 }

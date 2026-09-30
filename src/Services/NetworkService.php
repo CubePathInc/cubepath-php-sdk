@@ -107,4 +107,79 @@ class NetworkService
     {
         return $this->client->delete("/networks/{$networkId}/routes/{$routeId}");
     }
+
+    /**
+     * Move a private network to another project of the organization.
+     *
+     * @param int $networkId
+     * @param int $projectId Destination project ID
+     * @return array
+     */
+    public function moveToProject(int $networkId, int $projectId): array
+    {
+        return $this->client->post("/networks/{$networkId}/move-project", [
+            'project_id' => $projectId,
+        ]);
+    }
+
+    // --- BGP peers ---
+
+    /**
+     * List the BGP peers of a private network, with their session state.
+     *
+     * @param int $networkId
+     * @return array List of peers (id, peer_type, peer_target, remote_asn, max_prefix, description,
+     *               enabled, resolved_peer_ip, last_state, prefixes_received, received_prefixes, ...)
+     */
+    public function listBGPPeers(int $networkId): array
+    {
+        return $this->client->get("/networks/{$networkId}/bgp-peers");
+    }
+
+    /**
+     * Create a BGP peer: a VPS, baremetal server or IP of the network that announces routes.
+     *
+     * @param int   $networkId
+     * @param array $params {
+     *     @type string $peer_type   "ip", "vps" or "baremetal" (required)
+     *     @type string $peer_target Private IP, or the VPS or baremetal ID (required)
+     *     @type int    $remote_asn  ASN of the peer, not 64512 (required)
+     *     @type int    $max_prefix  Max prefixes accepted (optional, default 100)
+     *     @type string $description (optional)
+     * }
+     * @return array Contains detail, peer_id, peer_type, peer_target, remote_asn
+     */
+    public function createBGPPeer(int $networkId, array $params): array
+    {
+        return $this->client->post("/networks/{$networkId}/bgp-peers", $params);
+    }
+
+    /**
+     * Update a BGP peer.
+     *
+     * @param int    $networkId
+     * @param string $peerId
+     * @param array  $params {
+     *     @type int    $max_prefix  (optional)
+     *     @type string $description (optional)
+     *     @type bool   $enabled     (optional)
+     * }
+     * @return array
+     */
+    public function updateBGPPeer(int $networkId, string $peerId, array $params): array
+    {
+        return $this->client->patch("/networks/{$networkId}/bgp-peers/{$peerId}", $params);
+    }
+
+    /**
+     * Delete a BGP peer.
+     *
+     * @param int    $networkId
+     * @param string $peerId
+     * @return array
+     */
+    public function deleteBGPPeer(int $networkId, string $peerId): array
+    {
+        return $this->client->delete("/networks/{$networkId}/bgp-peers/{$peerId}");
+    }
 }
