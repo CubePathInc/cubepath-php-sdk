@@ -60,9 +60,36 @@ class CDNService
         return $this->client->get("/cdn/zones/{$zoneUUID}/origins");
     }
 
+    /**
+     * Create an origin. To serve a CubePath Object Storage bucket, pass object_storage_bucket_uuid
+     * with only name, weight, priority and is_backup (see createBucketOrigin()).
+     */
     public function createOrigin(string $zoneUUID, array $params): array
     {
         return $this->client->post("/cdn/zones/{$zoneUUID}/origins", $params);
+    }
+
+    /**
+     * Serve a CubePath Object Storage bucket through this zone. The API fills the address, TLS,
+     * health check and read only credentials of the bucket. Deleting the origin stops serving it.
+     *
+     * @param string $zoneUUID
+     * @param string $bucketUUID
+     * @param string $name
+     * @param array  $options {
+     *     @type int  $weight    (optional)
+     *     @type int  $priority  (optional)
+     *     @type bool $is_backup (optional)
+     * }
+     * @return array Contains uuid, name, address, object_storage_bucket_uuid, detail
+     */
+    public function createBucketOrigin(string $zoneUUID, string $bucketUUID, string $name, array $options = []): array
+    {
+        $allowed = array_intersect_key($options, array_flip(['weight', 'priority', 'is_backup']));
+        return $this->createOrigin($zoneUUID, array_merge($allowed, [
+            'name' => $name,
+            'object_storage_bucket_uuid' => $bucketUUID,
+        ]));
     }
 
     public function updateOrigin(string $zoneUUID, string $originUUID, array $params): array

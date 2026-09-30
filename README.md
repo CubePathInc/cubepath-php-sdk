@@ -390,6 +390,42 @@ $bandwidth = $client->natGateway()->getBandwidthUsage($nat['uuid']);
 $client->natGateway()->delete($nat['uuid']);
 ```
 
+### Object Storage
+
+S3 compatible buckets. Buckets and access keys are created asynchronously: they start as
+`pending` and are `active` a few seconds later.
+
+```php
+$os = $client->objectStorage();
+
+$tiers = $os->listTiers();
+
+$bucket = $os->createBucket(['name' => 'my-backups', 'tier' => 'infrequent_access']);
+$detail = $os->getBucket($bucket['uuid']); // poll until $detail['status'] === 'active'
+
+// The secret is only returned here
+$key = $os->createKey([
+    'name' => 'backup-job',
+    'tier' => 'infrequent_access',
+    'permission' => 'read_write', // or 'read_only'
+    'bucket_uuids' => [$bucket['uuid']], // omit for every bucket of the project
+]);
+echo $key['access_key_id'], ' ', $key['secret_access_key'], ' ', $key['endpoint'];
+
+$os->updateBucket($bucket['uuid'], ['versioning' => 'enabled', 'protected' => true]);
+$usage = $os->getUsage(['period' => '2026-09']);
+
+$os->deleteKey($key['uuid']);
+$os->deleteBucket($bucket['uuid'], true); // true purges the content first
+```
+
+Serve a bucket publicly through the CDN by adding it as an origin of a CDN zone (deleting the
+origin stops serving it):
+
+```php
+$origin = $client->cdn()->createBucketOrigin($zoneUuid, $bucket['uuid'], 'assets');
+```
+
 ### Pricing
 
 ```php

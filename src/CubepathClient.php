@@ -19,10 +19,11 @@ use Cubepath\Services\KubernetesService;
 use Cubepath\Services\DDoSService;
 use Cubepath\Services\AIGatewayService;
 use Cubepath\Services\NatGatewayService;
+use Cubepath\Services\ObjectStorageService;
 
 class CubepathClient
 {
-    const VERSION = '0.2.1';
+    const VERSION = '0.5.0';
     const DEFAULT_BASE_URL = 'https://api.cubepath.com';
     const DEFAULT_AI_GATEWAY_BASE_URL = 'https://ai-gateway.cubepath.com';
     const DEFAULT_TIMEOUT = 30;
@@ -58,6 +59,7 @@ class CubepathClient
     private ?DDoSService $ddos = null;
     private ?AIGatewayService $aiGateway = null;
     private ?NatGatewayService $natGateway = null;
+    private ?ObjectStorageService $objectStorage = null;
 
     public function __construct(string $apiToken, array $options = [])
     {
@@ -412,5 +414,13 @@ class CubepathClient
             $this->natGateway = new NatGatewayService($this);
         }
         return $this->natGateway;
+    }
+
+    public function objectStorage(): ObjectStorageService
+    {
+        if ($this->objectStorage === null) {
+            $this->objectStorage = new ObjectStorageService($this);
+        }
+        return $this->objectStorage;
     }
 }
