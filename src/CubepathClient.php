@@ -20,10 +20,14 @@ use Cubepath\Services\DDoSService;
 use Cubepath\Services\AIGatewayService;
 use Cubepath\Services\NatGatewayService;
 use Cubepath\Services\ObjectStorageService;
+use Cubepath\Services\ManagedDatabaseService;
+use Cubepath\Services\DDoSMitigationService;
+use Cubepath\Services\CloudAlertService;
+use Cubepath\Services\TranscoderService;
 
 class CubepathClient
 {
-    const VERSION = '0.5.1';
+    const VERSION = '0.6.0';
     const DEFAULT_BASE_URL = 'https://api.cubepath.com';
     const DEFAULT_AI_GATEWAY_BASE_URL = 'https://ai-gateway.cubepath.com';
     const DEFAULT_TIMEOUT = 30;
@@ -60,6 +64,10 @@ class CubepathClient
     private ?AIGatewayService $aiGateway = null;
     private ?NatGatewayService $natGateway = null;
     private ?ObjectStorageService $objectStorage = null;
+    private ?ManagedDatabaseService $managedDatabases = null;
+    private ?DDoSMitigationService $ddosMitigation = null;
+    private ?CloudAlertService $cloudAlerts = null;
+    private ?TranscoderService $transcoder = null;
 
     public function __construct(string $apiToken, array $options = [])
     {
@@ -458,5 +466,37 @@ class CubepathClient
             $this->objectStorage = new ObjectStorageService($this);
         }
         return $this->objectStorage;
+    }
+
+    public function managedDatabases(): ManagedDatabaseService
+    {
+        if ($this->managedDatabases === null) {
+            $this->managedDatabases = new ManagedDatabaseService($this);
+        }
+        return $this->managedDatabases;
+    }
+
+    public function ddosMitigation(): DDoSMitigationService
+    {
+        if ($this->ddosMitigation === null) {
+            $this->ddosMitigation = new DDoSMitigationService($this);
+        }
+        return $this->ddosMitigation;
+    }
+
+    public function cloudAlerts(): CloudAlertService
+    {
+        if ($this->cloudAlerts === null) {
+            $this->cloudAlerts = new CloudAlertService($this);
+        }
+        return $this->cloudAlerts;
+    }
+
+    public function transcoder(): TranscoderService
+    {
+        if ($this->transcoder === null) {
+            $this->transcoder = new TranscoderService($this);
+        }
+        return $this->transcoder;
     }
 }
