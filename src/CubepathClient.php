@@ -23,7 +23,7 @@ use Cubepath\Services\ObjectStorageService;
 
 class CubepathClient
 {
-    const VERSION = '0.5.0';
+    const VERSION = '0.5.1';
     const DEFAULT_BASE_URL = 'https://api.cubepath.com';
     const DEFAULT_AI_GATEWAY_BASE_URL = 'https://ai-gateway.cubepath.com';
     const DEFAULT_TIMEOUT = 30;
@@ -139,6 +139,42 @@ class CubepathClient
     public function delete(string $path): array
     {
         return $this->request('DELETE', $this->baseUrl . $path);
+    }
+
+    /**
+     * Run a query against POST /graphql and return its "data". Metrics (baremetal, NAT
+     * gateways...) are only served through GraphQL. A GraphQL error is thrown as an APIError;
+     * NOT_FOUND maps to 404.
+     *
+     * @param string $query
+     * @param array  $variables
+     * @return array
+     * @throws APIError
+     */
+    public function graphql(string $query, array $variables = []): array
+    {
+        $body = ['query' => $query];
+        if (!empty($variables)) {
+            $body['variables'] = $variables;
+        }
+        $response = $this->post('/graphql', $body);
+        if (!empty($response['errors'])) {
+            $status = 400;
+            $messages = [];
+            foreach ($response['errors'] as $error) {
+                $messages[] = $error['message'] ?? 'GraphQL error';
+                $code = $error['extensions']['code'] ?? '';
+                if ($code === 'NOT_FOUND') {
+                    $status = 404;
+                } elseif ($code === 'FORBIDDEN') {
+                    $status = 403;
+                } elseif ($code === 'UNAUTHENTICATED') {
+                    $status = 401;
+                }
+            }
+            throw new APIError($status, implode('; ', $messages));
+        }
+        return $response['data'] ?? [];
     }
 
     public function getRaw(string $path): string

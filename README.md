@@ -158,8 +158,12 @@ $client->baremetal()->power($baremetalId, 'reboot');
 $rescue = $client->baremetal()->rescue($baremetalId);
 echo $rescue['username'] . ' ' . $rescue['password'];
 
-// BMC sensors
+// BMC sensors (temperatures in CELSIUS, fans in RPM; last_seen is the last BMC poll)
 $sensors = $client->baremetal()->bmcSensors($baremetalId);
+
+// Reinstall progress (the server status is 'deploying' while it runs) and cancel
+$status = $client->baremetal()->reinstallStatus($baremetalId);
+$client->baremetal()->cancelReinstall($baremetalId);
 
 // IPMI session
 $session = $client->baremetal()->ipmiSession($baremetalId);
@@ -203,6 +207,7 @@ $client->floatingIPs()->release($ip['address']);
 ```php
 // Create a firewall group
 $group = $client->firewall()->create([
+    'project_id' => $projectId,
     'name' => 'web-rules',
     'enabled' => true,
     'rules' => [
@@ -211,7 +216,7 @@ $group = $client->firewall()->create([
     ],
 ]);
 
-// Assign to a VPS
+// Replace the groups of a VPS (at most 10, in priority order; [] removes them all)
 $client->firewall()->assignToVPS($vpsId, [$group['id']]);
 ```
 
@@ -382,8 +387,8 @@ $client->natGateway()->moveToProject($nat['uuid'], $newProjectId);
 // Enable delete protection
 $client->natGateway()->protection($nat['uuid'], true);
 
-// Metrics and bandwidth
-$metrics = $client->natGateway()->getMetrics($nat['uuid']);
+// Traffic metrics (H1 by default: H1, H3, H6, H12, H24, D3, D7, D30) and month-to-date usage
+$metrics = $client->natGateway()->getMetrics($nat['uuid'], 'H24');
 $bandwidth = $client->natGateway()->getBandwidthUsage($nat['uuid']);
 
 // Delete

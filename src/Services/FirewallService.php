@@ -2,6 +2,7 @@
 
 namespace Cubepath\Services;
 
+use Cubepath\APIError;
 use Cubepath\CubepathClient;
 
 class FirewallService
@@ -24,33 +25,47 @@ class FirewallService
     }
 
     /**
-     * Get a firewall group by ID.
+     * Get a firewall group by ID. The API has no single-group endpoint, so the group is
+     * looked up in the list.
      *
      * @param int $groupId
      * @return array
+     * @throws APIError 404 when the group does not exist
      */
     public function get(int $groupId): array
     {
-        return $this->client->get("/firewall/groups/{$groupId}");
+        foreach ($this->list() as $group) {
+            if ((int) ($group['id'] ?? 0) === $groupId) {
+                return $group;
+            }
+        }
+        throw new APIError(404, "Firewall group {$groupId} not found");
     }
 
     /**
      * Create a new firewall group.
      *
      * @param array $params {
-     *     @type string $name    Group name
-     *     @type array  $rules   Array of firewall rules
-     *     @type bool   $enabled Enable group
+     *     @type int    $project_id Project the group belongs to (required)
+     *     @type string $name       Group name
+     *     @type array  $rules      Array of firewall rules
+     *     @type bool   $enabled    Enable group
      * }
      * @return array
      */
     public function create(array $params): array
     {
-        return $this->client->post('/firewall/groups', $params);
+        if (empty($params['project_id'])) {
+            throw new \InvalidArgumentException('project_id is required to create a firewall group');
+        }
+        $projectId = (int) $params['project_id'];
+        unset($params['project_id']);
+        return $this->client->post("/firewall/groups?project_id={$projectId}", $params);
     }
 
     /**
-     * Update a firewall group.
+     * Update the name, rules or enabled flag of a firewall group; omitted keys are left
+     * unchanged.
      *
      * @param int   $groupId
      * @param array $params
@@ -58,7 +73,7 @@ class FirewallService
      */
     public function update(int $groupId, array $params): array
     {
-        return $this->client->patch("/firewall/groups/{$groupId}", $params);
+        return $this->client->put("/firewall/groups/{$groupId}", $params);
     }
 
     /**
@@ -73,15 +88,16 @@ class FirewallService
     }
 
     /**
-     * Assign/unassign firewall groups to a VPS.
+     * Replace the firewall groups of a VPS (at most 10, in priority order). An empty array
+     * removes them all. The new rules are applied in the background.
      *
      * @param int   $vpsId
      * @param array $firewallGroupIds Array of firewall group IDs
-     * @return array Contains message, vps_id, firewall_groups, sync_task_created
+     * @return array Contains detail, vps_id, firewall_groups, sync_task_created
      */
     public function assignToVPS(int $vpsId, array $firewallGroupIds): array
     {
-        return $this->client->post("/vps/{$vpsId}/firewall-groups", [
+        return $this->client->put("/firewall/vps/{$vpsId}/groups", [
             'firewall_group_ids' => $firewallGroupIds,
         ]);
     }

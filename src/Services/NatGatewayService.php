@@ -2,6 +2,7 @@
 
 namespace Cubepath\Services;
 
+use Cubepath\APIError;
 use Cubepath\CubepathClient;
 
 class NatGatewayService
@@ -120,25 +121,43 @@ class NatGatewayService
     }
 
     /**
-     * Get metrics for a NAT gateway.
+     * Traffic of a NAT gateway (series bytes_in and bytes_out, bytes per second), served
+     * through GraphQL.
      *
      * @param string $uuid
-     * @return array
+     * @param string $range H1 (default), H3, H6, H12, H24, D3, D7 or D30
+     * @return array Contains start, end, step, series[] (name, unit, points[] of ts, value)
+     * @throws APIError 404 when the gateway does not exist
      */
-    public function getMetrics(string $uuid): array
+    public function getMetrics(string $uuid, string $range = 'H1'): array
     {
-        return $this->client->get("/nat-gateway/{$uuid}/metrics");
+        $data = $this->client->graphql(
+            'query($uuid: ID!, $range: TimeRange!) { natGateway(uuid: $uuid) { metrics(range: $range) { start end step series { name unit points { ts value } } } } }',
+            ['uuid' => $uuid, 'range' => $range]
+        );
+        if (empty($data['natGateway'])) {
+            throw new APIError(404, "NAT gateway {$uuid} not found");
+        }
+        return $data['natGateway']['metrics'];
     }
 
     /**
-     * Get bandwidth usage for a NAT gateway.
+     * Month-to-date traffic of a NAT gateway, served through GraphQL.
      *
      * @param string $uuid
-     * @return array
+     * @return array Contains inBytes, outBytes, totalBytes, periodStart, periodEnd
+     * @throws APIError 404 when the gateway does not exist
      */
     public function getBandwidthUsage(string $uuid): array
     {
-        return $this->client->get("/nat-gateway/{$uuid}/bandwidth-usage");
+        $data = $this->client->graphql(
+            'query($uuid: ID!) { natGateway(uuid: $uuid) { bandwidthUsage { inBytes outBytes totalBytes periodStart periodEnd } } }',
+            ['uuid' => $uuid]
+        );
+        if (empty($data['natGateway'])) {
+            throw new APIError(404, "NAT gateway {$uuid} not found");
+        }
+        return $data['natGateway']['bandwidthUsage'];
     }
 
     /**

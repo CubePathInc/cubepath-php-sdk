@@ -2,6 +2,7 @@
 
 namespace Cubepath\Services;
 
+use Cubepath\APIError;
 use Cubepath\CubepathClient;
 
 class BaremetalService
@@ -119,14 +120,34 @@ class BaremetalService
     }
 
     /**
-     * Get BMC sensor data (temperatures, fans).
+     * Temperatures and fan speeds from the last BMC poll, served through GraphQL.
      *
      * @param int $baremetalId
-     * @return array Contains node, ipmi_available, power_on, sensors
+     * @return array Contains ipmi_available, power_on, last_seen (Unix time or null) and
+     *               sensors.temperatures / sensors.fans (name, value, unit CELSIUS or RPM).
+     *               node is kept for compatibility and is always empty.
+     * @throws APIError 404 when the server does not exist
      */
     public function bmcSensors(int $baremetalId): array
     {
-        return $this->client->get("/baremetal/{$baremetalId}/bmc-sensors");
+        $data = $this->client->graphql(
+            'query($id: ID!) { baremetal(id: $id) { sensors { ipmiAvailable powerOn lastSeen temperatures { name value unit } fans { name value unit } } } }',
+            ['id' => (string) $baremetalId]
+        );
+        if (empty($data['baremetal'])) {
+            throw new APIError(404, "Baremetal {$baremetalId} not found");
+        }
+        $s = $data['baremetal']['sensors'];
+        return [
+            'node' => '',
+            'ipmi_available' => (bool) ($s['ipmiAvailable'] ?? false),
+            'power_on' => (bool) ($s['powerOn'] ?? false),
+            'last_seen' => $s['lastSeen'] ?? null,
+            'sensors' => [
+                'temperatures' => $s['temperatures'] ?? [],
+                'fans' => $s['fans'] ?? [],
+            ],
+        ];
     }
 
     /**
@@ -160,14 +181,28 @@ class BaremetalService
     }
 
     /**
-     * Get reinstallation status.
+     * Whether an OS reinstallation is running. There is no dedicated endpoint any more: a
+     * server is reinstalling while its status is "deploying".
      *
      * @param int $baremetalId
-     * @return array Contains is_reinstalling, status, os_name
+     * @return array Contains is_reinstalling, status, os_name (always empty, kept for compatibility)
      */
     public function reinstallStatus(int $baremetalId): array
     {
-        return $this->client->get("/baremetal/{$baremetalId}/reinstall/status");
+        $bm = $this->get($baremetalId);
+        $status = $bm['status'] ?? '';
+        return ['is_reinstalling' => $status === 'deploying', 'status' => $status, 'os_name' => ''];
+    }
+
+    /**
+     * Cancel a pending or running OS reinstallation.
+     *
+     * @param int $baremetalId
+     * @return array
+     */
+    public function cancelReinstall(int $baremetalId): array
+    {
+        return $this->client->delete("/baremetal/{$baremetalId}/reinstall");
     }
 
     /**
