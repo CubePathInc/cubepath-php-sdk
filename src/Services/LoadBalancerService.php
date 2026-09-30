@@ -2,6 +2,7 @@
 
 namespace Cubepath\Services;
 
+use Cubepath\APIError;
 use Cubepath\CubepathClient;
 
 class LoadBalancerService
@@ -20,9 +21,19 @@ class LoadBalancerService
         return $this->client->get('/loadbalancer/');
     }
 
+    /**
+     * Get a load balancer. The API has no single-item endpoint, so it is looked up in the list.
+     *
+     * @throws APIError 404 when the load balancer does not exist
+     */
     public function get(string $lbUUID): array
     {
-        return $this->client->get("/loadbalancer/{$lbUUID}");
+        foreach ($this->list() as $lb) {
+            if (($lb['uuid'] ?? null) === $lbUUID) {
+                return $lb;
+            }
+        }
+        throw new APIError(404, "Load balancer {$lbUUID} not found");
     }
 
     /**

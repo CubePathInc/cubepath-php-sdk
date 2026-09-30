@@ -303,10 +303,10 @@ class CubepathClientTest extends TestCase
             new Response(200, [], '{"id": 1, "name": "test"}'),
         ]);
 
-        $client->firewall()->create(['name' => 'test', 'rules' => [], 'enabled' => true]);
+        $client->firewall()->create(['project_id' => 3, 'name' => 'test', 'rules' => [], 'enabled' => true]);
         $req = $this->lastRequest();
         $this->assertEquals('POST', $req->getMethod());
-        $this->assertStringContainsString('/firewall/groups', (string) $req->getUri());
+        $this->assertStringContainsString('/firewall/groups?project_id=3', (string) $req->getUri());
     }
 
     public function testFirewallUpdate(): void
@@ -317,7 +317,7 @@ class CubepathClientTest extends TestCase
 
         $client->firewall()->update(1, ['name' => 'updated']);
         $req = $this->lastRequest();
-        $this->assertEquals('PATCH', $req->getMethod());
+        $this->assertEquals('PUT', $req->getMethod());
     }
 
     public function testFirewallAssignToVPS(): void
@@ -328,8 +328,8 @@ class CubepathClientTest extends TestCase
 
         $client->firewall()->assignToVPS(10, [1, 2]);
         $req = $this->lastRequest();
-        $this->assertEquals('POST', $req->getMethod());
-        $this->assertStringContainsString('/vps/10/firewall-groups', (string) $req->getUri());
+        $this->assertEquals('PUT', $req->getMethod());
+        $this->assertStringContainsString('/firewall/vps/10/groups', (string) $req->getUri());
     }
 
     // --- Floating IP Tests ---

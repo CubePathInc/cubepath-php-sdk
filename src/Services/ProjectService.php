@@ -2,6 +2,7 @@
 
 namespace Cubepath\Services;
 
+use Cubepath\APIError;
 use Cubepath\CubepathClient;
 
 class ProjectService
@@ -20,18 +21,26 @@ class ProjectService
      */
     public function list(): array
     {
-        return $this->client->get('/projects');
+        return $this->client->get('/projects/');
     }
 
     /**
      * Get a specific project.
      *
+     * The API has no single-project endpoint, so the project is looked up in the list.
+     *
      * @param int $projectId
-     * @return array Project with nested resources
+     * @return array Project with nested resources (keys project, vps, baremetals, networks)
+     * @throws APIError 404 when the project does not exist
      */
     public function get(int $projectId): array
     {
-        return $this->client->get("/projects/{$projectId}");
+        foreach ($this->list() as $entry) {
+            if ((int) ($entry['project']['id'] ?? 0) === $projectId) {
+                return $entry;
+            }
+        }
+        throw new APIError(404, "Project {$projectId} not found");
     }
 
     /**
@@ -47,7 +56,7 @@ class ProjectService
         if ($description !== null) {
             $params['description'] = $description;
         }
-        return $this->client->post('/projects', $params);
+        return $this->client->post('/projects/', $params);
     }
 
     /**
