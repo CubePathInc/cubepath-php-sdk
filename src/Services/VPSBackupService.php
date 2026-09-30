@@ -17,11 +17,13 @@ class VPSBackupService
      * List all backups for a VPS.
      *
      * @param int $vpsId
+     * @param int $limit  Page size (default 50)
+     * @param int $offset Backups to skip (default 0)
      * @return array Array of VPSBackup objects (from "backups" key)
      */
-    public function list(int $vpsId): array
+    public function list(int $vpsId, int $limit = 50, int $offset = 0): array
     {
-        return $this->client->get("/vps/{$vpsId}/backups");
+        return $this->client->get("/vps/{$vpsId}/backups", ['limit' => $limit, 'offset' => $offset]);
     }
 
     /**

@@ -76,6 +76,26 @@ class LoadBalancerService
         return $this->client->get('/loadbalancer/plans');
     }
 
+    /**
+     * Enable or disable delete protection.
+     */
+    public function protection(string $lbUUID, bool $enabled): array
+    {
+        return $this->client->post("/loadbalancer/{$lbUUID}/protection", [
+            'enabled' => $enabled,
+        ]);
+    }
+
+    /**
+     * Move a load balancer to another project of the organization.
+     */
+    public function moveToProject(string $lbUUID, int $projectId): array
+    {
+        return $this->client->post("/loadbalancer/{$lbUUID}/move-project", [
+            'project_id' => $projectId,
+        ]);
+    }
+
     // --- Listeners ---
 
     public function createListener(string $lbUUID, array $params): array
@@ -108,6 +128,21 @@ class LoadBalancerService
     public function removeTarget(string $lbUUID, string $listenerUUID, string $targetUUID): array
     {
         return $this->client->delete("/loadbalancer/{$lbUUID}/listeners/{$listenerUUID}/targets/{$targetUUID}");
+    }
+
+    /**
+     * Add several targets to a listener in one call.
+     *
+     * @param string $lbUUID
+     * @param string $listenerUUID
+     * @param array  $targets List of {target_type, target_uuid, port, weight, enabled}
+     * @return array Contains detail, targets
+     */
+    public function addTargets(string $lbUUID, string $listenerUUID, array $targets): array
+    {
+        return $this->client->post("/loadbalancer/{$lbUUID}/listeners/{$listenerUUID}/targets/batch", [
+            'targets' => array_values($targets),
+        ]);
     }
 
     public function drainTarget(string $lbUUID, string $listenerUUID, string $targetUUID): array

@@ -9,6 +9,7 @@ class VPSService
     private CubepathClient $client;
     private ?VPSBackupService $backups = null;
     private ?VPSISOService $isos = null;
+    private ?AvailabilityGroupService $availabilityGroups = null;
 
     public function __construct(CubepathClient $client)
     {
@@ -29,7 +30,7 @@ class VPSService
      *     @type int[]  $ssh_key_ids    SSH key IDs (optional)
      *     @type string $user           Default user (optional)
      *     @type string $password       Root/admin password (optional, min 8 chars)
-     *     @type bool   $ipv4           Add IPv4 (optional, default false)
+     *     @type bool   $ipv4           Add IPv4 (optional, default true)
      *     @type bool   $ipv6           Public IPv6 (optional, default true). Set false to deploy without public IP — requires network_id.
      *     @type bool   $enable_backups Enable auto backups (optional)
      *     @type string $custom_cloudinit  Custom cloud-init YAML (optional)
@@ -169,6 +170,115 @@ class VPSService
     }
 
     /**
+     * List VPS plans per location with prices and stock (status 1 means out of stock).
+     *
+     * @return array Contains locations[]
+     */
+    public function plans(): array
+    {
+        return $this->client->get('/vps/plans');
+    }
+
+    /**
+     * List every VPS of the organization as a flat list, each with its project.
+     *
+     * @return array List of VPS (id, name, label, status, plan, template, floating_ips, location,
+     *               network, firewall_groups, project, ...)
+     */
+    public function listAll(): array
+    {
+        return $this->client->get('/vps/');
+    }
+
+    /**
+     * Enable or disable delete protection.
+     *
+     * @param int  $vpsId
+     * @param bool $enabled
+     * @return array
+     */
+    public function protection(int $vpsId, bool $enabled): array
+    {
+        return $this->client->post("/vps/{$vpsId}/protection", [
+            'enabled' => $enabled,
+        ]);
+    }
+
+    /**
+     * Move a VPS to another project of the organization.
+     *
+     * @param int $vpsId
+     * @param int $projectId Destination project ID
+     * @return array
+     */
+    public function moveToProject(int $vpsId, int $projectId): array
+    {
+        return $this->client->post("/vps/{$vpsId}/move-project", [
+            'project_id' => $projectId,
+        ]);
+    }
+
+    /**
+     * Add SSH keys to a running VPS.
+     *
+     * @param int   $vpsId
+     * @param int[] $sshKeyIds
+     * @return array
+     */
+    public function addSSHKeys(int $vpsId, array $sshKeyIds): array
+    {
+        return $this->client->post("/vps/{$vpsId}/ssh-keys", array_values(array_map('intval', $sshKeyIds)));
+    }
+
+    /**
+     * Remove an SSH key from a VPS.
+     *
+     * @param int $vpsId
+     * @param int $sshKeyId
+     * @return array
+     */
+    public function removeSSHKey(int $vpsId, int $sshKeyId): array
+    {
+        return $this->client->delete("/vps/{$vpsId}/ssh-keys/{$sshKeyId}");
+    }
+
+    /**
+     * Attach the VPS to a private network in its location.
+     *
+     * @param int $vpsId
+     * @param int $networkId
+     * @return array
+     */
+    public function attachNetwork(int $vpsId, int $networkId): array
+    {
+        return $this->client->post("/vps/{$vpsId}/network", [
+            'network_id' => $networkId,
+        ]);
+    }
+
+    /**
+     * Detach the VPS from its private network.
+     *
+     * @param int $vpsId
+     * @return array
+     */
+    public function detachNetwork(int $vpsId): array
+    {
+        return $this->client->delete("/vps/{$vpsId}/network");
+    }
+
+    /**
+     * Open a console session.
+     *
+     * @param int $vpsId
+     * @return array Contains websocket_url, session_id, vnc_info
+     */
+    public function vncUrl(int $vpsId): array
+    {
+        return $this->client->post("/vps/{$vpsId}/vnc-url");
+    }
+
+    /**
      * Get the VPS Backup sub-service.
      */
     public function backups(): VPSBackupService
@@ -188,5 +298,16 @@ class VPSService
             $this->isos = new VPSISOService($this->client);
         }
         return $this->isos;
+    }
+
+    /**
+     * Get the availability groups sub-service.
+     */
+    public function availabilityGroups(): AvailabilityGroupService
+    {
+        if ($this->availabilityGroups === null) {
+            $this->availabilityGroups = new AvailabilityGroupService($this->client);
+        }
+        return $this->availabilityGroups;
     }
 }

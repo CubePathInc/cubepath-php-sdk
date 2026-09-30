@@ -162,12 +162,20 @@ class CDNService
      * Get CDN metrics (returns raw JSON).
      *
      * @param string     $zoneUUID
-     * @param string     $metricType
+     * @param string     $metricType One of summary, requests, bandwidth, cache, status-codes, top-urls,
+     *                               top-countries, top-asn, top-user-agents, blocked, pops, file-extensions
      * @param array|null $params {
-     *     @type int    $minutes
-     *     @type int    $interval_seconds
-     *     @type string $group_by
-     *     @type int    $limit
+     *     @type int    $minutes          Window in minutes (default 60)
+     *     @type int    $interval_seconds Bucket size of time series (requests, bandwidth, cache)
+     *     @type string $group_by         "time" or "region" (bandwidth)
+     *     @type int    $limit            Rows of the top-* and file-extensions lists
+     *     @type string $country          Filter by country code (optional)
+     *     @type string $asn              Filter by ASN (optional)
+     *     @type string $status_range     Filter by status class, e.g. "5xx" (optional)
+     *     @type string $status           Filter by status code (optional)
+     *     @type string $cache_status     Filter by cache status, e.g. "HIT" (optional)
+     *     @type string $device_type      Filter by device type (optional)
+     *     @type string $path_prefix      Filter by path prefix (optional)
      * }
      * @return string Raw JSON response
      */
@@ -176,22 +184,17 @@ class CDNService
         $path = "/cdn/zones/{$zoneUUID}/metrics/{$metricType}";
 
         $query = [];
-        if ($params !== null) {
-            if (!empty($params['minutes'])) {
-                $query[] = "minutes={$params['minutes']}";
-            }
-            if (!empty($params['interval_seconds'])) {
-                $query[] = "interval_seconds={$params['interval_seconds']}";
-            }
-            if (!empty($params['group_by'])) {
-                $query[] = "group_by={$params['group_by']}";
-            }
-            if (!empty($params['limit'])) {
-                $query[] = "limit={$params['limit']}";
+        $keys = [
+            'minutes', 'interval_seconds', 'group_by', 'limit', 'country', 'asn',
+            'status_range', 'status', 'cache_status', 'device_type', 'path_prefix',
+        ];
+        foreach ($keys as $key) {
+            if ($params !== null && !empty($params[$key])) {
+                $query[$key] = $params[$key];
             }
         }
         if (!empty($query)) {
-            $path .= '?' . implode('&', $query);
+            $path .= '?' . http_build_query($query);
         }
 
         return $this->client->getRaw($path);
@@ -216,5 +219,65 @@ class CDNService
         return $this->client->post("/cdn/zones/{$zoneUUID}/move-project", [
             'project_id' => $projectId,
         ]);
+    }
+
+    // --- Cache purge ---
+
+    /**
+     * Purge cached files of the zone, on the system hostname and the custom domain.
+     *
+     * @param string $zoneUUID
+     * @param array  $params {
+     *     @type string[] $paths      Up to 100 paths starting with "/" (optional)
+     *     @type bool     $everything Purge every cached file instead (optional)
+     * }
+     * @return array Contains detail, purge_uuid, status
+     */
+    public function purgeCache(string $zoneUUID, array $params): array
+    {
+        return $this->client->post("/cdn/zones/{$zoneUUID}/purge-cache", $params);
+    }
+
+    /**
+     * List the recent cache purges of the zone with their progress per PoP.
+     *
+     * @param string $zoneUUID
+     * @return array List of purges (purge_uuid, scope, paths, status, requested_at, completed_at,
+     *               nodes, pops)
+     */
+    public function listPurges(string $zoneUUID): array
+    {
+        return $this->client->get("/cdn/zones/{$zoneUUID}/purge-cache");
+    }
+
+    // --- Token authentication ---
+
+    /**
+     * Generate a new token authentication secret. URLs signed with the old one stop working.
+     *
+     * @param string $zoneUUID
+     * @return array Contains detail, token_auth_secret
+     */
+    public function rotateTokenSecret(string $zoneUUID): array
+    {
+        return $this->client->post("/cdn/zones/{$zoneUUID}/token-auth/rotate-secret");
+    }
+
+    /**
+     * Sign a URL of a zone with token authentication enabled.
+     *
+     * @param string      $zoneUUID
+     * @param string      $path      Path starting with "/"
+     * @param int         $expiresIn Validity in seconds, 60 to 604800 (default 3600)
+     * @param string|null $clientIp  Required when the zone binds tokens to the client IP
+     * @return array Contains detail, signed_url, token, expires
+     */
+    public function signURL(string $zoneUUID, string $path, int $expiresIn = 3600, ?string $clientIp = null): array
+    {
+        $body = ['path' => $path, 'expires_in' => $expiresIn];
+        if ($clientIp !== null) {
+            $body['client_ip'] = $clientIp;
+        }
+        return $this->client->post("/cdn/zones/{$zoneUUID}/token-auth/sign-url", $body);
     }
 }
