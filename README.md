@@ -552,6 +552,20 @@ $os->deleteKey($key['uuid']);
 $os->deleteBucket($bucket['uuid'], true); // true purges the content first
 ```
 
+Lifecycle rules delete objects in the background, permanently. `putBucketLifecycle()` replaces
+every rule and is applied asynchronously (seconds, up to about 12 minutes after a previous change of
+the same bucket); objects go within 48 hours of their due date. In a versioned bucket an
+expiration only adds a delete marker: add a noncurrent version rule to free space.
+
+```php
+$change = $os->putBucketLifecycle($bucket['uuid'], [
+    ['id' => 'logs-30d', 'enabled' => true, 'filter' => ['prefix' => 'logs/'], 'expiration' => ['days' => 30]],
+    ['id' => 'old-versions', 'enabled' => true, 'noncurrent_version_expiration' => ['noncurrent_days' => 30]],
+]);
+$lifecycle = $os->getBucketLifecycle($bucket['uuid']); // applied when applied_generation >= generation
+$os->deleteBucketLifecycle($bucket['uuid']);
+```
+
 Serve a bucket publicly through the CDN by adding it as an origin of a CDN zone (deleting the
 origin stops serving it):
 
