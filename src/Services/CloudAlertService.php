@@ -5,8 +5,13 @@ namespace Cubepath\Services;
 use Cubepath\CubepathClient;
 
 /**
- * Cloud Alerts: watch a metric of a VPS, baremetal server or availability group and notify a
- * channel (Slack, Discord or email) when it crosses a threshold.
+ * Cloud Alerts: watch a metric of a VPS, baremetal server, availability group, Object Storage
+ * bucket or the Object Storage usage of the organization, and notify a channel (Slack, Discord
+ * or email) when it crosses a threshold. An organization can have up to 50 alerts.
+ *
+ * Monthly metrics (storage_cost_month and storage_egress_gb_month) notify once per month as soon
+ * as the threshold is crossed and reset on the 1st (UTC). They only accept the "gt" and "gte"
+ * operators and ignore duration_seconds and cooldown_seconds.
  */
 class CloudAlertService
 {
@@ -26,8 +31,9 @@ class CloudAlertService
      *     @type int    $project_id (optional)
      *     @type string $status     "enabled", "disabled", "triggered" or "resolved" (optional)
      * }
-     * @return array List of alerts (id, project_id, name, target_type, target_id, metric_type,
-     *               operator, threshold, status, actions_count, ...)
+     * @return array List of alerts (id, project_id, name, target_type, target_id, target_name,
+     *               metric_type, operator, threshold, status, actions_count, ...). target_name is
+     *               the bucket name for bucket alerts and null otherwise.
      */
     public function list(array $filters = []): array
     {
@@ -52,13 +58,31 @@ class CloudAlertService
      *     @type int    $project_id       Project ID (required)
      *     @type string $name             Alert name (required)
      *     @type string $description      (optional)
-     *     @type string $target_type      "vps", "baremetal" or "availability_group" (required)
-     *     @type string $target_id        VPS or baremetal ID, or availability group UUID (required)
-     *     @type string $metric_type      "cpu", "ram", "disk", "network_in" or "network_out" (required)
-     *     @type string $operator         "gt", "lt", "gte", "lte" or "eq" (required)
-     *     @type float  $threshold        (required)
-     *     @type int    $duration_seconds How long the condition must hold (optional, default 300)
-     *     @type int    $cooldown_seconds Minimum time between notifications (optional, default 600)
+     *     @type string $target_type      "vps", "baremetal", "availability_group",
+     *                                    "object_storage_bucket" or "organization" (required)
+     *     @type string $target_id        VPS or baremetal ID, availability group or bucket UUID, or
+     *                                    the organization ID as a string (required). A bucket alert
+     *                                    must be created in the bucket's project; an organization
+     *                                    alert is listed under project_id and deleted with it.
+     *     @type string $metric_type      (required) Servers and availability groups: "cpu", "ram",
+     *                                    "disk", "network_in" or "network_out" (baremetal only the
+     *                                    network ones). Buckets: "storage_size_gb" (GiB),
+     *                                    "storage_egress_gb_month" (GiB this month, before the free
+     *                                    tier), "storage_error_rate_5xx" or "storage_error_rate_403"
+     *                                    (percent of requests over the last 5 minutes, needs at
+     *                                    least 20 requests). Organization: "storage_cost_month" (USD
+     *                                    billed so far this month, about an hour behind billing) or
+     *                                    "storage_egress_gb_month".
+     *     @type string $operator         "gt", "lt", "gte", "lte" or "eq"; monthly metrics only "gt"
+     *                                    or "gte" (required)
+     *     @type float  $threshold        (required) 0 to 1000000 for server metrics. Object Storage
+     *                                    metrics need a value above 0 and at most 1048576 for
+     *                                    storage_size_gb, 100 for the error rates and 1000000 for
+     *                                    the monthly ones.
+     *     @type int    $duration_seconds How long the condition must hold (optional, default 300,
+     *                                    ignored by monthly metrics)
+     *     @type int    $cooldown_seconds Minimum time between notifications (optional, default 600,
+     *                                    ignored by monthly metrics)
      *     @type array  $actions          List of {action_type: "notify", notificator_id} (required)
      * }
      * @return array The created alert

@@ -77,6 +77,36 @@ class CloudAlertAndTranscoderServiceTest extends TestCase
         $this->assertEquals('DELETE', $this->lastRequest()->getMethod());
     }
 
+    public function testObjectStorageAlerts(): void
+    {
+        $client = $this->createClient([
+            new Response(201, [], '{"id":"t2","target_type":"organization","target_id":"7","target_name":null}'),
+            new Response(201, [], '{"id":"t3","target_type":"object_storage_bucket","target_name":"assets"}'),
+            new Response(200, [], '[{"id":"t3","target_name":"assets","metric_type":"storage_size_gb"}]'),
+        ]);
+        $a = $client->cloudAlerts();
+
+        $budget = [
+            'project_id' => 3, 'name' => 'budget', 'target_type' => 'organization', 'target_id' => '7',
+            'metric_type' => 'storage_cost_month', 'operator' => 'gte', 'threshold' => 50,
+            'actions' => [['action_type' => 'notify', 'notificator_id' => 'n1']],
+        ];
+        $this->assertNull($a->create($budget)['target_name']);
+        $this->assertEquals('/triggers/', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals($budget, $this->lastBody());
+
+        $size = [
+            'project_id' => 3, 'name' => 'assets size', 'target_type' => 'object_storage_bucket',
+            'target_id' => '6f1c1a8e-0d6b-4f0e-9a43-2b7f3c1d9e10', 'metric_type' => 'storage_size_gb',
+            'operator' => 'gt', 'threshold' => 1048576,
+            'actions' => [['action_type' => 'notify', 'notificator_id' => 'n1']],
+        ];
+        $this->assertEquals('assets', $a->create($size)['target_name']);
+        $this->assertEquals($size, $this->lastBody());
+
+        $this->assertEquals('assets', $a->list(['project_id' => 3])[0]['target_name']);
+    }
+
     public function testNotificators(): void
     {
         $client = $this->createClient([
