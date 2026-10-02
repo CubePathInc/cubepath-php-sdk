@@ -661,8 +661,9 @@ $stats = $ddos->getTrafficStats([
 
 ### Cloud Alerts
 
-Notify a Slack, Discord or email channel when a metric of a VPS, baremetal server or
-availability group crosses a threshold.
+Notify a Slack, Discord or email channel when a metric of a VPS, baremetal server,
+availability group or Object Storage bucket, or the Object Storage usage of the organization,
+crosses a threshold.
 
 ```php
 $alerts = $client->cloudAlerts();
@@ -676,12 +677,38 @@ $channel = $alerts->createNotificator([
 $alert = $alerts->create([
     'project_id' => $projectId,
     'name' => 'High CPU',
-    'target_type' => 'vps',      // vps, baremetal or availability_group
+    'target_type' => 'vps',      // vps, baremetal, availability_group, object_storage_bucket or organization
     'target_id' => (string) $vpsId,
     'metric_type' => 'cpu',      // cpu, ram, disk, network_in or network_out
     'operator' => 'gt',          // gt, lt, gte, lte or eq
     'threshold' => 90,
     'duration_seconds' => 300,
+    'actions' => [['action_type' => 'notify', 'notificator_id' => $channel['id']]],
+]);
+
+// Monthly Object Storage budget: notifies once when 50 USD have been billed this month and
+// resets on the 1st (UTC). Only gt and gte; duration and cooldown are ignored.
+$budget = $alerts->create([
+    'project_id' => $projectId,
+    'name' => 'Object Storage budget',
+    'target_type' => 'organization',
+    'target_id' => (string) $organizationId,
+    'metric_type' => 'storage_cost_month', // or storage_egress_gb_month
+    'operator' => 'gte',
+    'threshold' => 50,
+    'actions' => [['action_type' => 'notify', 'notificator_id' => $channel['id']]],
+]);
+
+// Bucket size above 500 GiB (create it in the bucket's project). Buckets also support
+// storage_egress_gb_month, storage_error_rate_5xx and storage_error_rate_403.
+$bucketAlert = $alerts->create([
+    'project_id' => $bucket['project_id'],
+    'name' => 'Assets bucket size',
+    'target_type' => 'object_storage_bucket',
+    'target_id' => $bucket['uuid'],
+    'metric_type' => 'storage_size_gb',
+    'operator' => 'gt',
+    'threshold' => 500,
     'actions' => [['action_type' => 'notify', 'notificator_id' => $channel['id']]],
 ]);
 
