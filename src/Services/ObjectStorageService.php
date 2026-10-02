@@ -2,6 +2,7 @@
 
 namespace Cubepath\Services;
 
+use Cubepath\APIError;
 use Cubepath\CubepathClient;
 
 /**
@@ -173,5 +174,34 @@ class ObjectStorageService
     public function getUsage(array $filters = []): array
     {
         return $this->client->get('/object-storage/usage', $filters);
+    }
+
+    // --- Charts ---
+
+    /**
+     * Chart series of a bucket, served through GraphQL: storage (size_bytes, objects, hourly),
+     * traffic (egress_bytes, cdn_bytes, ingress_bytes, class_a_requests, class_b_requests,
+     * free_requests) and responses (responses_2xx, responses_3xx, responses_4xx, responses_5xx,
+     * responses_429, responses_other). Traffic and responses are totals per step, not rates.
+     *
+     * @param string $uuid
+     * @param string $range H1, H3, H6, H12, H24 (default), D3, D7 or D30
+     * @return array Contains uuid, name, storageMeasuredAt, storage, traffic, responses; each part
+     *               has start, end, step, series[] (name, unit, points[] of ts, value)
+     * @throws APIError 404 when the bucket does not exist
+     */
+    public function bucketMetrics(string $uuid, string $range = 'H24'): array
+    {
+        $result = 'start end step series { name unit points { ts value } }';
+        $data = $this->client->graphql(
+            'query($uuid: ID!, $range: TimeRange!) { objectStorageBucket(uuid: $uuid) { uuid name storageMeasuredAt '
+                . "storage(range: \$range) { {$result} } traffic(range: \$range) { {$result} } "
+                . "responses(range: \$range) { {$result} } } }",
+            ['uuid' => $uuid, 'range' => $range]
+        );
+        if (empty($data['objectStorageBucket'])) {
+            throw new APIError(404, "Bucket {$uuid} not found");
+        }
+        return $data['objectStorageBucket'];
     }
 }

@@ -125,6 +125,30 @@ class ObjectStorageServiceTest extends TestCase
         $this->assertEquals(['2026-09'], $usage['available_months']);
     }
 
+    public function testBucketMetricsViaGraphql(): void
+    {
+        $part = '{"start":1,"end":2,"step":300,"series":[]}';
+        $client = $this->createClient([new Response(200, [], '{"data":{"objectStorageBucket":{"uuid":"b1","name":"photos","storageMeasuredAt":1,"storage":' . $part . ',"traffic":' . $part . ',"responses":' . $part . '}}}')]);
+        $metrics = $client->objectStorage()->bucketMetrics('b1', 'D7');
+
+        $this->assertEquals('/graphql', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals(['uuid' => 'b1', 'range' => 'D7'], $this->lastBody()['variables']);
+        $this->assertStringContainsString('objectStorageBucket(uuid: $uuid)', $this->lastBody()['query']);
+        $this->assertStringContainsString('responses(range: $range) { start end step', $this->lastBody()['query']);
+        $this->assertEquals('photos', $metrics['name']);
+    }
+
+    public function testBucketMetricsNotFound(): void
+    {
+        $client = $this->createClient([new Response(200, [], '{"data":{"objectStorageBucket":null},"errors":[{"message":"Resource not found.","extensions":{"code":"NOT_FOUND"}}]}')]);
+        try {
+            $client->objectStorage()->bucketMetrics('nope');
+            $this->fail('expected APIError');
+        } catch (\Cubepath\APIError $e) {
+            $this->assertEquals(404, $e->getStatusCode());
+        }
+    }
+
     public function testCreateBucketOriginSendsOnlyAllowedFields(): void
     {
         $client = $this->createClient([new Response(201, [], '{"uuid":"o1","object_storage_bucket_uuid":"b1"}')]);
