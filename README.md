@@ -621,6 +621,57 @@ origin stops serving it):
 $origin = $client->cdn()->createBucketOrigin($zoneUuid, $bucket['uuid'], 'assets');
 ```
 
+#### Event Notifications
+
+Send bucket events (`object.created`, `object.removed`, `object.tagging`) to a signed webhook
+or to a Cloud Alerts channel. A destination belongs to the organization; a rule on a bucket picks
+the events, an optional key prefix and suffix, and the destination. The signing secret is only
+returned by `createEventDestination()` and `rotateEventDestinationSecret()`: store it then.
+After a rotation the previous secret keeps signing for 24 hours.
+
+```php
+$created = $client->objectStorage()->createEventDestination([
+    'name' => 'uploads-hook',
+    'type' => 'webhook',
+    'url'  => 'https://example.com/hooks/storage', // or 'type' => 'notificator', 'notificator_id' => $channelId
+]);
+$secret = $created['signing_secret']; // whsec_..., shown only now
+
+$rule = $client->objectStorage()->createEventRule($bucket['uuid'], [
+    'name'             => 'new-uploads',
+    'destination_uuid' => $created['destination']['uuid'],
+    'events'           => ['object.created'],
+    'prefix'           => 'incoming/',
+]); // status "pending" until applied, then "active"
+
+$client->objectStorage()->testEventDestination($created['destination']['uuid']); // sends a cubepath.ping
+$failed = $client->objectStorage()->listEventDeliveries($created['destination']['uuid'], ['status' => 'failed']);
+```
+
+Verify every webhook delivery before trusting it, against the raw body. `CubePath-Signature`
+holds one or more `v1=<hex>` values, each the HMAC-SHA256 of `CubePath-Timestamp + "." + body`;
+`Webhooks::verifyStorageEventSignature()` compares them in constant time and rejects timestamps
+more than 5 minutes away:
+
+```php
+use Cubepath\StorageEventSignatureException;
+use Cubepath\Webhooks;
+
+try {
+    Webhooks::verifyStorageEventSignature(
+        $secret,
+        $_SERVER['HTTP_CUBEPATH_TIMESTAMP'] ?? '',
+        file_get_contents('php://input'),
+        $_SERVER['HTTP_CUBEPATH_SIGNATURE'] ?? ''
+    );
+} catch (StorageEventSignatureException $e) {
+    http_response_code(401);
+    exit;
+}
+// Deliveries are at least once: deduplicate by the CubePath-Event-Id header.
+http_response_code(204);
+```
+
 #### Presigned URLs
 
 This SDK talks to the CubePath API, not to S3. To share one object for a while, sign a

@@ -210,6 +210,134 @@ class ObjectStorageService
         return $this->client->delete('/object-storage/buckets/' . rawurlencode($uuid) . '/lifecycle');
     }
 
+    // --- Event notifications ---
+
+    /**
+     * List the organization's event destinations. Webhook URLs are only returned masked.
+     *
+     * @return array List of destinations (uuid, name, type, url_masked, notificator, payload_format,
+     *               status, disabled_reason, last_success_at, last_failure_at, last_error, rules_count)
+     */
+    public function listEventDestinations(): array
+    {
+        return $this->client->get('/object-storage/event-destinations');
+    }
+
+    /**
+     * Create an event destination. The signing secret is only returned here and by
+     * rotateEventDestinationSecret(): store it.
+     *
+     * @param array $params {
+     *     @type string $name           Destination name (required)
+     *     @type string $type           "webhook" or "notificator" (required)
+     *     @type string $url            Webhook URL, https (webhook only)
+     *     @type string $notificator_id Cloud Alerts channel (notificator only)
+     *     @type string $payload_format "cubepath" (default) or "s3"
+     * }
+     * @return array Contains destination and signing_secret (null for a channel)
+     */
+    public function createEventDestination(array $params): array
+    {
+        return $this->client->post('/object-storage/event-destinations', $params);
+    }
+
+    public function getEventDestination(string $uuid): array
+    {
+        return $this->client->get('/object-storage/event-destinations/' . rawurlencode($uuid));
+    }
+
+    /**
+     * @param array $params Any of name, url, payload_format, enabled
+     */
+    public function updateEventDestination(string $uuid, array $params): array
+    {
+        return $this->client->patch('/object-storage/event-destinations/' . rawurlencode($uuid), $params);
+    }
+
+    /**
+     * Delete a destination without rules.
+     */
+    public function deleteEventDestination(string $uuid): array
+    {
+        return $this->client->delete('/object-storage/event-destinations/' . rawurlencode($uuid));
+    }
+
+    /**
+     * Issue a new signing secret; the previous one keeps signing for 24 hours.
+     *
+     * @return array Contains destination and signing_secret
+     */
+    public function rotateEventDestinationSecret(string $uuid): array
+    {
+        return $this->client->post('/object-storage/event-destinations/' . rawurlencode($uuid) . '/rotate-secret');
+    }
+
+    /**
+     * Send a cubepath.ping event to the destination.
+     */
+    public function testEventDestination(string $uuid): array
+    {
+        return $this->client->post('/object-storage/event-destinations/' . rawurlencode($uuid) . '/test');
+    }
+
+    /**
+     * Delivery history of a destination.
+     *
+     * @param array $filters {
+     *     @type string $status "success", "failed" or "dead" (optional)
+     *     @type int    $limit  Default 50 (optional)
+     *     @type string $before Page back from this timestamp (optional)
+     * }
+     */
+    public function listEventDeliveries(string $uuid, array $filters = []): array
+    {
+        return $this->client->get('/object-storage/event-destinations/' . rawurlencode($uuid) . '/deliveries', $filters);
+    }
+
+    /**
+     * List the event rules of a bucket.
+     *
+     * @return array List of rules (uuid, name, bucket_uuid, destination, events, prefix, suffix,
+     *               enabled, status, error_message)
+     */
+    public function listEventRules(string $bucketUuid): array
+    {
+        return $this->client->get('/object-storage/buckets/' . rawurlencode($bucketUuid) . '/event-rules');
+    }
+
+    /**
+     * Create an event rule on a bucket. Applied asynchronously: status goes from "pending" to
+     * "active".
+     *
+     * @param array $params {
+     *     @type string   $name             Rule name (required)
+     *     @type string   $destination_uuid Destination (required)
+     *     @type string[] $events           object.created, object.removed, object.tagging (required)
+     *     @type string   $prefix           Key prefix (optional)
+     *     @type string   $suffix           Key suffix (optional)
+     *     @type bool     $enabled          Default true
+     * }
+     */
+    public function createEventRule(string $bucketUuid, array $params): array
+    {
+        return $this->client->post('/object-storage/buckets/' . rawurlencode($bucketUuid) . '/event-rules', $params);
+    }
+
+    public function updateEventRule(string $bucketUuid, string $ruleUuid, array $params): array
+    {
+        return $this->client->patch(
+            '/object-storage/buckets/' . rawurlencode($bucketUuid) . '/event-rules/' . rawurlencode($ruleUuid),
+            $params
+        );
+    }
+
+    public function deleteEventRule(string $bucketUuid, string $ruleUuid): array
+    {
+        return $this->client->delete(
+            '/object-storage/buckets/' . rawurlencode($bucketUuid) . '/event-rules/' . rawurlencode($ruleUuid)
+        );
+    }
+
     // --- Access keys ---
 
     /**
