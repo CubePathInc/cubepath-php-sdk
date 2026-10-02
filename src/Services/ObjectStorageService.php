@@ -216,7 +216,8 @@ class ObjectStorageService
      * List the organization's event destinations. Webhook URLs are only returned masked.
      *
      * @return array List of destinations (uuid, name, type, url_masked, notificator, payload_format,
-     *               status, disabled_reason, last_success_at, last_failure_at, last_error, rules_count)
+     *               status, disabled_reason, previous_secret_expires_at, last_success_at,
+     *               last_failure_at, last_error, rules_count, created_at)
      */
     public function listEventDestinations(): array
     {
@@ -265,7 +266,7 @@ class ObjectStorageService
     /**
      * Issue a new signing secret; the previous one keeps signing for 24 hours.
      *
-     * @return array Contains destination and signing_secret
+     * @return array Contains destination, signing_secret and previous_secret_expires_at
      */
     public function rotateEventDestinationSecret(string $uuid): array
     {
@@ -273,7 +274,10 @@ class ObjectStorageService
     }
 
     /**
-     * Send a cubepath.ping event to the destination.
+     * Deliver a cubepath.ping now (the destination must be active); the outcome shows up in the
+     * delivery history.
+     *
+     * @return array Contains detail
      */
     public function testEventDestination(string $uuid): array
     {
@@ -281,13 +285,16 @@ class ObjectStorageService
     }
 
     /**
-     * Delivery history of a destination.
+     * A page of the delivery history of a destination, newest first.
      *
      * @param array $filters {
      *     @type string $status "success", "failed" or "dead" (optional)
-     *     @type int    $limit  Default 50 (optional)
-     *     @type string $before Page back from this timestamp (optional)
+     *     @type int    $limit  1 to 200, default 50 (optional)
+     *     @type int    $before Unix milliseconds: pass next_before of the previous page (optional)
      * }
+     * @return array Contains deliveries (ts, ts_ms, event_id, delivery_id, event_type, bucket_uuid,
+     *               bucket_name, rule_uuid, object_key, attempt, status, http_status, latency_ms,
+     *               error) and next_before (null on the last page)
      */
     public function listEventDeliveries(string $uuid, array $filters = []): array
     {
@@ -298,7 +305,7 @@ class ObjectStorageService
      * List the event rules of a bucket.
      *
      * @return array List of rules (uuid, name, bucket_uuid, destination, events, prefix, suffix,
-     *               enabled, status, error_message)
+     *               enabled, status, error_message, created_at)
      */
     public function listEventRules(string $bucketUuid): array
     {

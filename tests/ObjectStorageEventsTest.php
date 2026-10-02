@@ -50,7 +50,7 @@ class ObjectStorageEventsTest extends TestCase
         $os->updateEventDestination('d1', ['enabled' => false]);
         $os->rotateEventDestinationSecret('d1');
         $os->testEventDestination('d1');
-        $os->listEventDeliveries('d1', ['status' => 'failed', 'limit' => 10]);
+        $os->listEventDeliveries('d1', ['status' => 'failed', 'limit' => 10, 'before' => 1790964001250]);
         $os->deleteEventDestination('d1');
         $os->listEventRules('b1');
         $os->createEventRule('b1', ['name' => 'r', 'destination_uuid' => 'd1', 'events' => ['object.created']]);
@@ -68,7 +68,7 @@ class ObjectStorageEventsTest extends TestCase
             'PATCH /object-storage/event-destinations/d1',
             'POST /object-storage/event-destinations/d1/rotate-secret',
             'POST /object-storage/event-destinations/d1/test',
-            'GET /object-storage/event-destinations/d1/deliveries?status=failed&limit=10',
+            'GET /object-storage/event-destinations/d1/deliveries?status=failed&limit=10&before=1790964001250',
             'DELETE /object-storage/event-destinations/d1',
             'GET /object-storage/buckets/b1/event-rules',
             'POST /object-storage/buckets/b1/event-rules',
@@ -86,8 +86,10 @@ class ObjectStorageEventsTest extends TestCase
         Webhooks::verifyStorageEventSignature(self::SECRET, self::TS, self::BODY, 'v1=' . self::SIG, 300, self::NOW);
         Webhooks::verifyStorageEventSignature(self::SECRET, self::TS, self::BODY, 'v1=' . self::PREV_SIG . ',v1=' . self::SIG, 300, self::NOW);
         Webhooks::verifyStorageEventSignature('whsec_previous', self::TS, self::BODY, 'v1=' . self::SIG . ', v1=' . self::PREV_SIG, 300, self::NOW);
+        // The exact form the service sends during a rotation.
+        Webhooks::verifyStorageEventSignature(self::SECRET, self::TS, self::BODY, 'v1=' . self::SIG . ', v1=' . self::PREV_SIG, 300, self::NOW);
         Webhooks::verifyStorageEventSignature(self::SECRET, self::TS, self::BODY, 'v1=' . self::SIG, 0, self::NOW + 3600);
-        $this->addToAssertionCount(4);
+        $this->addToAssertionCount(5);
     }
 
     public function invalidProvider(): array
