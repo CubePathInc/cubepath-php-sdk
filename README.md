@@ -601,6 +601,60 @@ $os->createKey(['name' => 'veeam', 'tier' => 'infrequent_access', 'permission' =
 $os->deleteBucket($vault['uuid'], true, true);
 ```
 
+#### Replication
+
+A replication copies the new object versions of a source bucket, asynchronously, to one
+destination: another CubePath bucket of the same tier, or an external S3 compatible bucket (AWS S3,
+Wasabi or another provider) over HTTPS on port 443. Versioning must be enabled on the source (and
+on a CubePath destination), and a bucket with Object Lock cannot be a source. A CubePath
+destination lives in the same storage cluster, so it is not a disaster recovery copy: use an
+external destination for an off site copy. Replication to an external destination is billed as
+egress of the source bucket.
+
+```php
+// To another bucket of the organization
+$repl = $os->createReplication([
+    'source_bucket_uuid' => $bucket['uuid'],
+    'destination' => ['type' => 'cubepath', 'bucket_uuid' => $backup['uuid']],
+    'prefix' => 'img/', // optional; or 'tags' => [['key' => 'backup', 'value' => 'yes']]
+]);
+
+// To an external bucket; the secret is never returned
+$os->createReplication([
+    'source_bucket_uuid' => $bucket['uuid'],
+    'destination' => [
+        'type' => 'external', 'provider' => 'aws', 'endpoint' => 's3.eu-west-1.amazonaws.com',
+        'region' => 'eu-west-1', 'bucket' => 'acme-backup',
+        'access_key_id' => getenv('AWS_ACCESS_KEY_ID'), 'secret_access_key' => getenv('AWS_SECRET_ACCESS_KEY'),
+    ],
+]);
+
+$detail = $os->getReplication($repl['uuid']); // status, health, backfill and metrics
+$outgoing = $os->listReplications(['direction' => 'outgoing']);
+$os->updateReplication($repl['uuid'], ['enabled' => false]); // pause; true resumes
+$os->updateReplication($repl['uuid'], ['prefix' => null]);   // null removes the filter
+$os->resyncReplication($repl['uuid'], 7);                    // existing objects older than 7 days; null for all
+$os->deleteReplication($repl['uuid']);                       // the replicated data stays
+```
+
+To replicate into a bucket of another organization, its owner creates a grant (one use, 1 to 30
+days, 7 by default) and shares the token, which is only returned once:
+
+```php
+// Owner of the destination bucket
+$grant = $os->createReplicationGrant($backup['uuid'], 'for Acme', 7);
+echo $grant['token']; // cprg_...
+$os->listReplicationGrants($backup['uuid']);
+$os->deleteReplicationGrant($grant['uuid']); // revoke it while unused
+$os->revokeReplication($incomingUuid);       // stop an incoming replication
+
+// Owner of the source bucket
+$os->createReplication([
+    'source_bucket_uuid' => $bucket['uuid'],
+    'destination' => ['type' => 'cubepath', 'bucket_uuid' => $backupUuid, 'grant_token' => $token],
+]);
+```
+
 #### Encryption at rest
 
 Every bucket stores its objects encrypted with AES-256 (SSE-S3); there is nothing to configure.

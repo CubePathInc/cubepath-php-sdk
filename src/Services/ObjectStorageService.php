@@ -6,7 +6,7 @@ use Cubepath\APIError;
 use Cubepath\CubepathClient;
 
 /**
- * Object Storage (S3 compatible): tiers, buckets, access keys and usage.
+ * Object Storage (S3 compatible): tiers, buckets, replication, access keys and usage.
  *
  * Buckets and access keys are created asynchronously: they start as "pending" and become
  * "active" a few seconds later (poll getBucket() or listKeys() until then).
@@ -208,6 +208,185 @@ class ObjectStorageService
     public function deleteBucketLifecycle(string $uuid): array
     {
         return $this->client->delete('/object-storage/buckets/' . rawurlencode($uuid) . '/lifecycle');
+    }
+
+    // --- Replication ---
+
+    /**
+     * List the organization's replications.
+     *
+     * A replication copies new object versions of a source bucket, asynchronously, to one
+     * destination: another CubePath bucket of the same tier (of this organization, or of another
+     * one that authorizes it with a replication grant) or an external S3 compatible bucket over
+     * HTTPS on port 443. With a CubePath destination both buckets live in the same storage cluster:
+     * it is not a disaster recovery copy; use an external destination for an off site copy.
+     *
+     * @param array $filters {
+     *     @type string $direction   "outgoing", "incoming" or "all" (optional, default "all")
+     *     @type string $bucket_uuid Only the replications whose source (outgoing) or destination
+     *                               (incoming) is this bucket (optional)
+     * }
+     * @return array List of replications (uuid, status, pause_reason, direction, source,
+     *               destination, rules, health, health_reason, health_checked_at, backfill,
+     *               error_message, created_at, active_at)
+     */
+    public function listReplications(array $filters = []): array
+    {
+        return $this->client->get('/object-storage/replications', $filters);
+    }
+
+    /**
+     * Get a replication of one of the organization's source buckets, with its metrics.
+     *
+     * @param string $uuid
+     * @return array Replication fields plus metrics (null when unavailable): replicated_bytes_24h,
+     *               replicated_objects_24h, failed_objects_1h, queued_objects, queued_bytes,
+     *               last_sample_at, egress_bytes_month (external destinations only)
+     */
+    public function getReplication(string $uuid): array
+    {
+        return $this->client->get('/object-storage/replications/' . rawurlencode($uuid));
+    }
+
+    /**
+     * Replicate a bucket to one destination. The source bucket needs versioning enabled and
+     * cannot have Object Lock; a CubePath destination needs versioning enabled too. Created
+     * asynchronously: it starts as "pending" (poll getReplication()).
+     *
+     * Replication to an external destination is billed as egress of the source bucket.
+     *
+     * @param array $params {
+     *     @type string $source_bucket_uuid A bucket of the organization (required)
+     *     @type array  $destination        (required) CubePath: ['type' => 'cubepath',
+     *                                      'bucket_uuid' => ..., 'grant_token' => 'cprg_...' (only for a
+     *                                      bucket of another organization)]. External: ['type' => 'external',
+     *                                      'provider' => 'aws'|'wasabi'|'other', 'endpoint' => 's3.eu-west-1.amazonaws.com',
+     *                                      'region' => 'eu-west-1', 'bucket' => 'acme-backup',
+     *                                      'path_style' => 'auto'|'on'|'off', 'access_key_id' => ...,
+     *                                      'secret_access_key' => ...]
+     *     @type string $prefix             Only objects under this prefix (optional)
+     *     @type array  $tags               Only objects with all these tags: [['key' => ..., 'value' => ...]],
+     *                                      1 to 10, not together with prefix (optional)
+     *     @type bool   $delete_marker_replication Replicate delete markers, not with tags (optional, default false)
+     *     @type bool   $delete_replication Replicate deletes of a specific version (optional, default false)
+     *     @type bool   $existing_objects   Copy the objects the bucket already holds (optional, default true)
+     * }
+     * @return array Contains detail, uuid, status ("pending")
+     */
+    public function createReplication(array $params): array
+    {
+        return $this->client->post('/object-storage/replications', $params);
+    }
+
+    /**
+     * Change the rules of a replication, pause it ('enabled' => false) or resume it, or rotate
+     * the credentials of an external destination. Only the keys present are changed: 'prefix'
+     * => null or 'tags' => null removes that filter.
+     *
+     * @param string $uuid
+     * @param array  $params {
+     *     @type bool        $enabled
+     *     @type string|null $prefix
+     *     @type array|null  $tags   [['key' => ..., 'value' => ...]]
+     *     @type bool        $delete_marker_replication
+     *     @type bool        $delete_replication
+     *     @type bool        $existing_objects
+     *     @type array       $destination External only: ['access_key_id' => ..., 'secret_access_key' => ...]
+     * }
+     * @return array Contains detail
+     */
+    public function updateReplication(string $uuid, array $params): array
+    {
+        return $this->client->patch('/object-storage/replications/' . rawurlencode($uuid), $params);
+    }
+
+    /**
+     * Remove a replication (by the owner of the source bucket). The data already replicated
+     * stays in the destination.
+     *
+     * @param string $uuid
+     * @return array Contains detail
+     */
+    public function deleteReplication(string $uuid): array
+    {
+        return $this->client->delete('/object-storage/replications/' . rawurlencode($uuid));
+    }
+
+    /**
+     * Send the existing objects of the source bucket again. Needs an active replication with
+     * existing_objects enabled.
+     *
+     * @param string   $uuid
+     * @param int|null $olderThanDays Only objects older than this many days (1 to 36500); null for every object
+     * @return array Contains detail
+     */
+    public function resyncReplication(string $uuid, ?int $olderThanDays = null): array
+    {
+        return $this->client->post(
+            '/object-storage/replications/' . rawurlencode($uuid) . '/resync',
+            ['older_than_days' => $olderThanDays]
+        );
+    }
+
+    /**
+     * Stop a replication that writes into one of the organization's buckets (by the owner of
+     * the destination). The source owner can then only delete it.
+     *
+     * @param string $uuid
+     * @return array Contains detail
+     */
+    public function revokeReplication(string $uuid): array
+    {
+        return $this->client->post('/object-storage/replications/' . rawurlencode($uuid) . '/revoke');
+    }
+
+    // --- Replication grants ---
+
+    /**
+     * Authorize another organization to replicate into a bucket. The grant is used once,
+     * expires, and can be revoked until it is used. The token is only returned by this call.
+     *
+     * @param string      $bucketUuid    The destination bucket (versioning enabled)
+     * @param string|null $note          Up to 255 characters (optional)
+     * @param int|null    $expiresInDays 1 to 30 (optional, default 7)
+     * @return array Contains detail, uuid, token, token_prefix, bucket_uuid, note, expires_at
+     */
+    public function createReplicationGrant(string $bucketUuid, ?string $note = null, ?int $expiresInDays = null): array
+    {
+        $body = [];
+        if ($note !== null) {
+            $body['note'] = $note;
+        }
+        if ($expiresInDays !== null) {
+            $body['expires_in_days'] = $expiresInDays;
+        }
+        return $this->client->post(
+            '/object-storage/buckets/' . rawurlencode($bucketUuid) . '/replication-grants',
+            empty($body) ? null : $body
+        );
+    }
+
+    /**
+     * The replication grants of a bucket, newest first. Tokens are never returned here.
+     *
+     * @param string $bucketUuid
+     * @return array List of grants (uuid, token_prefix, note, status: open, used, expired or
+     *               revoked, expires_at, used_at, revoked_at, created_at)
+     */
+    public function listReplicationGrants(string $bucketUuid): array
+    {
+        return $this->client->get('/object-storage/buckets/' . rawurlencode($bucketUuid) . '/replication-grants');
+    }
+
+    /**
+     * Revoke a replication grant that was not used yet.
+     *
+     * @param string $uuid
+     * @return array Contains detail
+     */
+    public function deleteReplicationGrant(string $uuid): array
+    {
+        return $this->client->delete('/object-storage/replication-grants/' . rawurlencode($uuid));
     }
 
     // --- Access keys ---

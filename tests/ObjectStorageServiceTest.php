@@ -273,4 +273,143 @@ class ObjectStorageServiceTest extends TestCase
         $this->assertEquals('/object-storage/buckets/b1/lifecycle', $this->lastRequest()->getUri()->getPath());
         $this->assertEquals(4, $change['generation']);
     }
+
+    public function testListAndGetReplications(): void
+    {
+        $client = $this->createClient([
+            new Response(200, [], '[{"uuid":"r1","direction":"outgoing","destination":{"type":"cubepath"}}]'),
+            new Response(200, [], '[]'),
+            new Response(200, [], '{"uuid":"r1","status":"active","metrics":{"queued_objects":0}}'),
+        ]);
+        $os = $client->objectStorage();
+
+        $list = $os->listReplications(['direction' => 'outgoing', 'bucket_uuid' => 'b1']);
+        $this->assertEquals('GET', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/replications', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals('direction=outgoing&bucket_uuid=b1', $this->lastRequest()->getUri()->getQuery());
+        $this->assertEquals('r1', $list[0]['uuid']);
+
+        $os->listReplications();
+        $this->assertEquals('', $this->lastRequest()->getUri()->getQuery());
+
+        $detail = $os->getReplication('r1');
+        $this->assertEquals('/object-storage/replications/r1', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals(0, $detail['metrics']['queued_objects']);
+    }
+
+    public function testCreateReplication(): void
+    {
+        $client = $this->createClient([
+            new Response(201, [], '{"detail":"Replication is being configured","uuid":"r1","status":"pending"}'),
+            new Response(201, [], '{"detail":"Replication is being configured","uuid":"r2","status":"pending"}'),
+        ]);
+        $os = $client->objectStorage();
+
+        $created = $os->createReplication([
+            'source_bucket_uuid' => 'b1',
+            'destination' => ['type' => 'cubepath', 'bucket_uuid' => 'b2', 'grant_token' => 'cprg_abc'],
+            'prefix' => 'img/',
+        ]);
+        $this->assertEquals('POST', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/replications', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals([
+            'source_bucket_uuid' => 'b1',
+            'destination' => ['type' => 'cubepath', 'bucket_uuid' => 'b2', 'grant_token' => 'cprg_abc'],
+            'prefix' => 'img/',
+        ], $this->lastBody());
+        $this->assertEquals('pending', $created['status']);
+
+        $external = [
+            'type' => 'external', 'provider' => 'aws', 'endpoint' => 's3.eu-west-1.amazonaws.com',
+            'region' => 'eu-west-1', 'bucket' => 'acme-backup', 'access_key_id' => 'AKIA',
+            'secret_access_key' => 'secret',
+        ];
+        $os->createReplication([
+            'source_bucket_uuid' => 'b1',
+            'destination' => $external,
+            'tags' => [['key' => 'backup', 'value' => 'yes']],
+            'existing_objects' => false,
+        ]);
+        $body = $this->lastBody();
+        $this->assertEquals($external, $body['destination']);
+        $this->assertEquals([['key' => 'backup', 'value' => 'yes']], $body['tags']);
+        $this->assertFalse($body['existing_objects']);
+    }
+
+    public function testUpdateReplicationSendsExplicitNulls(): void
+    {
+        $client = $this->createClient([
+            new Response(200, [], '{"detail":"Replication updated"}'),
+            new Response(200, [], '{"detail":"Replication updated"}'),
+        ]);
+        $os = $client->objectStorage();
+
+        $os->updateReplication('r1', ['prefix' => null, 'tags' => [['key' => 'k', 'value' => 'v']]]);
+        $this->assertEquals('PATCH', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/replications/r1', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals('{"prefix":null,"tags":[{"key":"k","value":"v"}]}', (string) $this->lastRequest()->getBody());
+
+        $os->updateReplication('r1', ['enabled' => false, 'destination' => ['access_key_id' => 'AK', 'secret_access_key' => 'SK']]);
+        $this->assertEquals(
+            ['enabled' => false, 'destination' => ['access_key_id' => 'AK', 'secret_access_key' => 'SK']],
+            $this->lastBody()
+        );
+    }
+
+    public function testDeleteResyncAndRevokeReplication(): void
+    {
+        $client = $this->createClient([
+            new Response(200, [], '{"detail":"Replication removal started"}'),
+            new Response(202, [], '{"detail":"Resync queued"}'),
+            new Response(202, [], '{"detail":"Resync queued"}'),
+            new Response(200, [], '{"detail":"Incoming replication revoked"}'),
+        ]);
+        $os = $client->objectStorage();
+
+        $os->deleteReplication('r1');
+        $this->assertEquals('DELETE', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/replications/r1', $this->lastRequest()->getUri()->getPath());
+
+        $result = $os->resyncReplication('r1', 30);
+        $this->assertEquals('POST', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/replications/r1/resync', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals('{"older_than_days":30}', (string) $this->lastRequest()->getBody());
+        $this->assertEquals('Resync queued', $result['detail']);
+
+        $os->resyncReplication('r1');
+        $this->assertEquals('{"older_than_days":null}', (string) $this->lastRequest()->getBody());
+
+        $os->revokeReplication('r1');
+        $this->assertEquals('POST', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/replications/r1/revoke', $this->lastRequest()->getUri()->getPath());
+    }
+
+    public function testReplicationGrants(): void
+    {
+        $client = $this->createClient([
+            new Response(201, [], '{"detail":"Replication grant created","uuid":"g1","token":"cprg_abc","token_prefix":"cprg_abcd","bucket_uuid":"b2","note":"for Acme","expires_at":"2026-10-09T10:00:00"}'),
+            new Response(201, [], '{"uuid":"g2","token":"cprg_def"}'),
+            new Response(200, [], '[{"uuid":"g1","status":"open","token_prefix":"cprg_abcd"}]'),
+            new Response(200, [], '{"detail":"Replication grant revoked"}'),
+        ]);
+        $os = $client->objectStorage();
+
+        $grant = $os->createReplicationGrant('b2', 'for Acme', 14);
+        $this->assertEquals('POST', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/buckets/b2/replication-grants', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals(['note' => 'for Acme', 'expires_in_days' => 14], $this->lastBody());
+        $this->assertEquals('cprg_abc', $grant['token']);
+
+        $os->createReplicationGrant('b2');
+        $this->assertEquals('', (string) $this->lastRequest()->getBody());
+
+        $grants = $os->listReplicationGrants('b2');
+        $this->assertEquals('GET', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/buckets/b2/replication-grants', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals('open', $grants[0]['status']);
+
+        $os->deleteReplicationGrant('g1');
+        $this->assertEquals('DELETE', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/replication-grants/g1', $this->lastRequest()->getUri()->getPath());
+    }
 }
