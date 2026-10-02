@@ -521,7 +521,11 @@ $os = $client->objectStorage();
 
 $tiers = $os->listTiers();
 
-$bucket = $os->createBucket(['name' => 'my-backups', 'tier' => 'infrequent_access']);
+$bucket = $os->createBucket([
+    'name' => 'my-backups',
+    'tier' => 'infrequent_access',
+    'tags' => ['env' => 'prod', 'team' => 'data'], // optional labels
+]);
 $detail = $os->getBucket($bucket['uuid']); // poll until $detail['status'] === 'active'
 
 // The secret is only returned here
@@ -534,6 +538,10 @@ $key = $os->createKey([
 echo $key['access_key_id'], ' ', $key['secret_access_key'], ' ', $key['endpoint'];
 
 $os->updateBucket($bucket['uuid'], ['versioning' => 'enabled', 'protected' => true]);
+
+// Tags: replaces every tag ([] removes them all); filter with "key" or "key=value", all must match
+$os->updateBucket($bucket['uuid'], ['tags' => ['env' => 'staging']]);
+$prod = $os->listBuckets(['tags' => ['env=prod', 'team']]);
 $usage = $os->getUsage(['period' => '2026-09']);
 
 $os->deleteKey($key['uuid']);

@@ -39,15 +39,17 @@ class ObjectStorageService
      * List the organization's buckets.
      *
      * @param array $filters {
-     *     @type int    $project_id Only this project's buckets (optional)
-     *     @type string $tier       Tier uuid or slug (optional)
+     *     @type int      $project_id Only this project's buckets (optional)
+     *     @type string   $tier       Tier uuid or slug (optional)
+     *     @type string[] $tags       Only buckets with every one of these tags: "key" (any value)
+     *                                or "key=value", at most 10 (optional)
      * }
      * @return array List of buckets (uuid, name, status, tier, region, endpoint, versioning,
-     *               protected, size_bytes, objects_count, monthly_charges, cdn_connected, ...)
+     *               protected, size_bytes, objects_count, monthly_charges, cdn_connected, tags, ...)
      */
     public function listBuckets(array $filters = []): array
     {
-        return $this->client->get('/object-storage/buckets', $filters);
+        return $this->client->get(self::withTagFilter('/object-storage/buckets', $filters));
     }
 
     /**
@@ -70,27 +72,34 @@ class ObjectStorageService
      *     @type string $tier       Tier uuid or slug, e.g. "infrequent_access" (required)
      *     @type int    $project_id Project ID (optional, default: the organization's first project)
      *     @type bool   $versioning Create with versioning enabled (optional)
+     *     @type array  $tags       Labels as ['key' => 'value'], at most 50; key 1 to 128 and
+     *                              value 0 to 256 characters (optional)
      * }
-     * @return array Contains detail, uuid, name, status ("pending"), project_id, tier, region, endpoint
+     * @return array Contains detail, uuid, name, status ("pending"), project_id, tier, region,
+     *               endpoint, tags
      */
     public function createBucket(array $params): array
     {
-        return $this->client->post('/object-storage/buckets', $params);
+        return $this->client->post('/object-storage/buckets', self::tagsAsObject($params));
     }
 
     /**
-     * Change versioning or deletion protection of a bucket.
+     * Change versioning, deletion protection or tags of a bucket.
+     *
+     * Bucket tags are managed through the API only: S3 bucket tagging calls answer 403.
      *
      * @param string $uuid
      * @param array  $params {
      *     @type string $versioning "enabled" or "suspended" (optional)
      *     @type bool   $protected  Deletion protection (optional)
+     *     @type array  $tags       Replaces every tag with ['key' => 'value']; [] removes them all;
+     *                              leave it out to keep them (optional)
      * }
      * @return array Contains detail
      */
     public function updateBucket(string $uuid, array $params): array
     {
-        return $this->client->patch('/object-storage/buckets/' . rawurlencode($uuid), $params);
+        return $this->client->patch('/object-storage/buckets/' . rawurlencode($uuid), self::tagsAsObject($params));
     }
 
     /**
@@ -165,13 +174,43 @@ class ObjectStorageService
      * @param array $filters {
      *     @type string $period     "YYYY-MM", within the last 12 months (optional, default: current month)
      *     @type int    $project_id (optional)
-     *     @type string $tier       Tier uuid or slug (optional)
+     *     @type string   $tier       Tier uuid or slug (optional)
+     *     @type string[] $tags       Only buckets with every one of these tags, like listBuckets() (optional)
      * }
      * @return array Contains period, since, until, metrics_available, total_cost, projected_cost,
-     *               tiers, buckets, available_months
+     *               tiers, buckets (each with its tags), available_months
      */
     public function getUsage(array $filters = []): array
     {
-        return $this->client->get('/object-storage/usage', $filters);
+        return $this->client->get(self::withTagFilter('/object-storage/usage', $filters));
+    }
+
+    /**
+     * Build the query string with the "tags" filter as a repeated tag=... parameter, which is
+     * what the API expects (http_build_query would send tags[0]=...).
+     */
+    private static function withTagFilter(string $path, array $filters): string
+    {
+        $tags = $filters['tags'] ?? [];
+        unset($filters['tags']);
+        $parts = [];
+        if (!empty($filters)) {
+            $parts[] = http_build_query($filters, '', '&', PHP_QUERY_RFC3986);
+        }
+        foreach ((array) $tags as $tag) {
+            $parts[] = 'tag=' . rawurlencode((string) $tag);
+        }
+        return empty($parts) ? $path : $path . '?' . implode('&', $parts);
+    }
+
+    /**
+     * Send "tags" as a JSON object: an empty PHP array would be encoded as [] instead of {}.
+     */
+    private static function tagsAsObject(array $params): array
+    {
+        if (array_key_exists('tags', $params) && is_array($params['tags'])) {
+            $params['tags'] = (object) $params['tags'];
+        }
+        return $params;
     }
 }

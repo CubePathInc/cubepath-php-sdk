@@ -141,4 +141,44 @@ class ObjectStorageServiceTest extends TestCase
         );
         $this->assertEquals('b1', $origin['object_storage_bucket_uuid']);
     }
+
+    public function testBucketTags(): void
+    {
+        $client = $this->createClient([
+            new Response(200, [], '[{"uuid":"b1","tags":{"env":"prod"}}]'),
+            new Response(201, [], '{"uuid":"b1","status":"pending","tags":{"env":"prod"}}'),
+            new Response(200, [], '{"detail":"Bucket updated"}'),
+            new Response(200, [], '{"detail":"Bucket updated"}'),
+            new Response(200, [], '{"detail":"Bucket updated"}'),
+        ]);
+        $os = $client->objectStorage();
+
+        $buckets = $os->listBuckets(['project_id' => 12, 'tags' => ['env=prod', 'team']]);
+        $this->assertEquals('project_id=12&tag=env%3Dprod&tag=team', $this->lastRequest()->getUri()->getQuery());
+        $this->assertEquals(['env' => 'prod'], $buckets[0]['tags']);
+
+        $created = $os->createBucket(['name' => 'photos', 'tier' => 'infrequent_access', 'tags' => ['env' => 'prod']]);
+        $this->assertEquals(['env' => 'prod'], $this->lastBody()['tags']);
+        $this->assertEquals(['env' => 'prod'], $created['tags']);
+
+        $os->updateBucket('b1', ['tags' => ['env' => 'dev', 'team' => '']]);
+        $this->assertEquals('{"tags":{"env":"dev","team":""}}', (string) $this->lastRequest()->getBody());
+
+        // An empty array clears every tag and must go out as a JSON object.
+        $os->updateBucket('b1', ['tags' => []]);
+        $this->assertEquals('{"tags":{}}', (string) $this->lastRequest()->getBody());
+
+        $os->updateBucket('b1', ['protected' => true]);
+        $this->assertArrayNotHasKey('tags', $this->lastBody());
+    }
+
+    public function testUsageTagFilter(): void
+    {
+        $client = $this->createClient([new Response(200, [], '{"buckets":[{"uuid":"b1","tags":{"env":"prod"}}]}')]);
+        $usage = $client->objectStorage()->getUsage(['period' => '2026-09', 'tags' => ['env=prod']]);
+
+        $this->assertEquals('/object-storage/usage', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals('period=2026-09&tag=env%3Dprod', $this->lastRequest()->getUri()->getQuery());
+        $this->assertEquals(['env' => 'prod'], $usage['buckets'][0]['tags']);
+    }
 }
