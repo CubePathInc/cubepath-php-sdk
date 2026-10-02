@@ -601,6 +601,19 @@ $os->createKey(['name' => 'veeam', 'tier' => 'infrequent_access', 'permission' =
 $os->deleteBucket($vault['uuid'], true, true);
 ```
 
+#### Encryption at rest
+
+Every bucket stores its objects encrypted with AES-256 (SSE-S3); there is nothing to configure.
+`encryption` on a bucket is `null` until the bucket default is applied, then `algorithm` is
+`AES256` and `scope` is `all_objects`, or `new_objects` while objects uploaded before the default
+may still be stored unencrypted (they are re-encrypted in the background). SSE-KMS is not
+available; SSE-C (your own key in each request) works through any S3 client.
+
+```php
+$bucket = $os->getBucket($uuid);
+echo $bucket['encryption']['scope'] ?? 'not applied yet';
+```
+
 Serve a bucket publicly through the CDN by adding it as an origin of a CDN zone (deleting the
 origin stops serving it):
 

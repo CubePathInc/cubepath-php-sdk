@@ -47,7 +47,9 @@ class ObjectStorageService
      * }
      * @return array List of buckets (uuid, name, status, tier, region, endpoint, versioning,
      *               protected, size_bytes, objects_count, monthly_charges, cdn_connected, tags,
-     *               object_lock (enabled, default_retention), locked_content_kept, ...)
+     *               object_lock (enabled, default_retention), locked_content_kept,
+     *               encryption (null until applied, or algorithm "AES256" and scope
+     *               "all_objects" or "new_objects"), ...)
      */
     public function listBuckets(array $filters = []): array
     {
