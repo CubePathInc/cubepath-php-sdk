@@ -566,6 +566,41 @@ $lifecycle = $os->getBucketLifecycle($bucket['uuid']); // applied when applied_g
 $os->deleteBucketLifecycle($bucket['uuid']);
 ```
 
+#### Object Lock
+
+Object Lock (WORM) keeps object versions from being deleted or overwritten until their
+retention date. It can only be enabled when the bucket is created, never later; the bucket
+always keeps versioning enabled and is created with deletion protection on.
+
+- `governance`: keys created with `bypass_governance` can still delete a version early (sending
+  `x-amz-bypass-governance-retention: true`).
+- `compliance`: nobody can delete a version or shorten its retention before the date, CubePath
+  included. Only organizations that support enabled for it can use it.
+
+```php
+$vault = $os->createBucket([
+    'name' => 'veeam-repo',
+    'tier' => 'infrequent_access',
+    'object_lock' => true, // implies versioning
+    'object_lock_default' => ['mode' => 'governance', 'days' => 30], // or 'years' => N
+    'accept_object_lock_terms' => true,
+]);
+var_dump($vault['object_lock']['enabled']);
+
+// Change the default retention (a compliance rule can only be kept or lengthened); the last
+// argument accepts the terms, needed when the rule turns compliance on or gets longer
+$os->setBucketObjectLock($vault['uuid'], ['mode' => 'governance', 'years' => 1], true);
+$os->setBucketObjectLock($vault['uuid'], null); // remove it
+
+// A key that may delete governance versions early (read_write only)
+$os->createKey(['name' => 'veeam', 'tier' => 'infrequent_access', 'permission' => 'read_write', 'bypass_governance' => true]);
+
+// Delete: disable protection first. The third argument (with force) also purges governance
+// versions. Versions under compliance or a legal hold are kept: the bucket stays with
+// locked_content_kept set and keeps being billed until their retention ends.
+$os->deleteBucket($vault['uuid'], true, true);
+```
+
 Serve a bucket publicly through the CDN by adding it as an origin of a CDN zone (deleting the
 origin stops serving it):
 
