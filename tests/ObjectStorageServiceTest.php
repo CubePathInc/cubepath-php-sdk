@@ -68,23 +68,6 @@ class ObjectStorageServiceTest extends TestCase
         $this->assertEquals('pending', $bucket['status']);
     }
 
-    public function testCreateWithoutEncryptionAndEnableIt(): void
-    {
-        $client = $this->createClient([
-            new Response(201, [], '{"uuid":"b1","status":"pending"}'),
-            new Response(202, [], '{"detail":"Encryption at rest is being enabled","reencrypt_job_id":7}'),
-        ]);
-        $os = $client->objectStorage();
-        $os->createBucket(['name' => 'scratch', 'tier' => 'infrequent_access', 'encryption' => false]);
-        $this->assertEquals(['name' => 'scratch', 'tier' => 'infrequent_access', 'encryption' => false], $this->lastBody());
-
-        $change = $os->enableBucketEncryption('b1');
-        $this->assertEquals('PUT', $this->lastRequest()->getMethod());
-        $this->assertEquals('/object-storage/buckets/b1/encryption', $this->lastRequest()->getUri()->getPath());
-        $this->assertEquals(['enabled' => true], $this->lastBody());
-        $this->assertEquals(7, $change['reencrypt_job_id']);
-    }
-
     public function testGetUpdateAndDeleteBucket(): void
     {
         $client = $this->createClient([

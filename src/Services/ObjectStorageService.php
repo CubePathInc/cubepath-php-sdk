@@ -48,8 +48,8 @@ class ObjectStorageService
      * @return array List of buckets (uuid, name, status, tier, region, endpoint, versioning,
      *               protected, size_bytes, objects_count, monthly_charges, cdn_connected, tags,
      *               object_lock (enabled, default_retention), locked_content_kept,
-     *               encryption (null while off, or algorithm "AES256", scope
-     *               "all_objects" or "new_objects" and applied_at), ...)
+     *               encryption (null until applied, or algorithm "AES256" and scope
+     *               "all_objects" or "new_objects"), ...)
      */
     public function listBuckets(array $filters = []): array
     {
@@ -84,9 +84,6 @@ class ObjectStorageService
      *                              ['mode' => 'governance'|'compliance', 'days' => N] or
      *                              ['mode' => ..., 'years' => N] (optional)
      *     @type bool   $accept_object_lock_terms Must be true with object_lock (optional)
-     *     @type bool   $encryption Encryption at rest (AES-256), true when omitted. false creates
-     *                              the bucket without it: it can be enabled later
-     *                              (enableBucketEncryption), never turned off (optional)
      * }
      * @return array Contains detail, uuid, name, status ("pending"), project_id, tier, region,
      *               endpoint, tags, object_lock (enabled, default_retention)
@@ -98,19 +95,6 @@ class ObjectStorageService
             unset($params['versioning']);
         }
         return $this->client->post('/object-storage/buckets', self::tagsAsObject($params));
-    }
-
-    /**
-     * Turn on encryption at rest (AES-256) for a bucket created without it. The objects already
-     * stored are encrypted in the background; in a versioned bucket only the current versions
-     * are. It cannot be turned off afterwards; on an encrypted bucket nothing changes.
-     *
-     * @param string $uuid
-     * @return array Contains detail and reencrypt_job_id (null when there was nothing to encrypt)
-     */
-    public function enableBucketEncryption(string $uuid): array
-    {
-        return $this->client->put('/object-storage/buckets/' . rawurlencode($uuid) . '/encryption', ['enabled' => true]);
     }
 
     /**

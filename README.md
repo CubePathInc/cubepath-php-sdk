@@ -603,18 +603,15 @@ $os->deleteBucket($vault['uuid'], true, true);
 
 #### Encryption at rest
 
-Encryption at rest (AES-256, SSE-S3) is on for new buckets unless you create them with
-`'encryption' => false`. It can be enabled later with `enableBucketEncryption()` (the objects
-already stored are encrypted in the background; in a versioned bucket only the current versions
-are) and never turned off. `encryption` on a bucket is `null` while it is off, otherwise
-`algorithm` is `AES256`, `applied_at` is when it was turned on and `scope` is `all_objects`, or
-`new_objects` while objects uploaded before still wait to be encrypted. SSE-KMS is not
+Every bucket stores its objects encrypted with AES-256 (SSE-S3); there is nothing to configure.
+`encryption` on a bucket is `null` until the bucket default is applied, then `algorithm` is
+`AES256` and `scope` is `all_objects`, or `new_objects` while objects uploaded before the default
+may still be stored unencrypted (they are re-encrypted in the background). SSE-KMS is not
 available; SSE-C (your own key in each request) works through any S3 client.
 
 ```php
-$scratch = $os->createBucket(['name' => 'scratch', 'tier' => 'infrequent_access', 'encryption' => false]);
-$change = $os->enableBucketEncryption($scratch['uuid']); // cannot be undone
-echo $os->getBucket($scratch['uuid'])['encryption']['scope'] ?? 'off';
+$bucket = $os->getBucket($uuid);
+echo $bucket['encryption']['scope'] ?? 'not applied yet';
 ```
 
 Serve a bucket publicly through the CDN by adding it as an origin of a CDN zone (deleting the
