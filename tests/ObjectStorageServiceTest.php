@@ -93,6 +93,50 @@ class ObjectStorageServiceTest extends TestCase
         $this->assertEquals('', $this->lastRequest()->getUri()->getQuery());
     }
 
+    public function testObjectLock(): void
+    {
+        $client = $this->createClient([
+            new Response(201, [], '{"uuid":"b1","object_lock":{"enabled":true,"default_retention":{"mode":"governance","days":30,"years":null}}}'),
+            new Response(200, [], '{"detail":"Bucket updated"}'),
+            new Response(200, [], '{"detail":"Bucket updated"}'),
+            new Response(200, [], '{"detail":"Bucket deletion started"}'),
+            new Response(201, [], '{"uuid":"k1","bypass_governance":true}'),
+        ]);
+        $os = $client->objectStorage();
+
+        $bucket = $os->createBucket([
+            'name' => 'vault',
+            'tier' => 'infrequent_access',
+            'versioning' => false,
+            'object_lock' => true,
+            'object_lock_default' => ['mode' => 'governance', 'days' => 30],
+            'accept_object_lock_terms' => true,
+        ]);
+        $this->assertEquals([
+            'name' => 'vault',
+            'tier' => 'infrequent_access',
+            'object_lock' => true,
+            'object_lock_default' => ['mode' => 'governance', 'days' => 30],
+            'accept_object_lock_terms' => true,
+        ], $this->lastBody());
+        $this->assertTrue($bucket['object_lock']['enabled']);
+
+        $os->setBucketObjectLock('b1', ['mode' => 'compliance', 'years' => 1], true);
+        $this->assertEquals('PUT', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/buckets/b1/object-lock', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals(['default_retention' => ['mode' => 'compliance', 'years' => 1], 'accept_object_lock_terms' => true], $this->lastBody());
+
+        $os->setBucketObjectLock('b1', null);
+        $this->assertSame('{"default_retention":null,"accept_object_lock_terms":false}', (string) $this->lastRequest()->getBody());
+
+        $os->deleteBucket('b1', true, true);
+        $this->assertEquals('force=true&bypass_governance=true', $this->lastRequest()->getUri()->getQuery());
+
+        $key = $os->createKey(['name' => 'veeam', 'tier' => 'ia', 'permission' => 'read_write', 'bypass_governance' => true]);
+        $this->assertTrue($this->lastBody()['bypass_governance']);
+        $this->assertTrue($key['bypass_governance']);
+    }
+
     public function testKeys(): void
     {
         $client = $this->createClient([

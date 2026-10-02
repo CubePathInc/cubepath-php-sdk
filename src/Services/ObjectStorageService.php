@@ -46,7 +46,8 @@ class ObjectStorageService
      *                                or "key=value", at most 10 (optional)
      * }
      * @return array List of buckets (uuid, name, status, tier, region, endpoint, versioning,
-     *               protected, size_bytes, objects_count, monthly_charges, cdn_connected, tags, ...)
+     *               protected, size_bytes, objects_count, monthly_charges, cdn_connected, tags,
+     *               object_lock (enabled, default_retention), locked_content_kept, ...)
      */
     public function listBuckets(array $filters = []): array
     {
@@ -75,13 +76,43 @@ class ObjectStorageService
      *     @type bool   $versioning Create with versioning enabled (optional)
      *     @type array  $tags       Labels as ['key' => 'value'], at most 50; key 1 to 128 and
      *                              value 0 to 256 characters (optional)
+     *     @type bool   $object_lock Create the bucket with Object Lock (WORM). Only possible now,
+     *                              never later; implies versioning and deletion protection (optional)
+     *     @type array  $object_lock_default Default retention of new objects, only with object_lock:
+     *                              ['mode' => 'governance'|'compliance', 'days' => N] or
+     *                              ['mode' => ..., 'years' => N] (optional)
+     *     @type bool   $accept_object_lock_terms Must be true with object_lock (optional)
      * }
      * @return array Contains detail, uuid, name, status ("pending"), project_id, tier, region,
-     *               endpoint, tags
+     *               endpoint, tags, object_lock (enabled, default_retention)
      */
     public function createBucket(array $params): array
     {
+        // Object Lock implies versioning: an explicit versioning false would be refused.
+        if (!empty($params['object_lock']) && array_key_exists('versioning', $params) && !$params['versioning']) {
+            unset($params['versioning']);
+        }
         return $this->client->post('/object-storage/buckets', self::tagsAsObject($params));
+    }
+
+    /**
+     * Change or remove the default retention of a bucket created with Object Lock. Object Lock
+     * itself can only be enabled when the bucket is created. A compliance rule can only be kept
+     * or lengthened.
+     *
+     * @param string     $uuid
+     * @param array|null $defaultRetention ['mode' => 'governance'|'compliance', 'days' => N] or
+     *                                     ['mode' => ..., 'years' => N]; null removes it
+     * @param bool       $acceptObjectLockTerms Required (true) when the change turns compliance on
+     *                                          or lengthens the retention
+     * @return array Contains detail
+     */
+    public function setBucketObjectLock(string $uuid, ?array $defaultRetention, bool $acceptObjectLockTerms = false): array
+    {
+        return $this->client->put('/object-storage/buckets/' . rawurlencode($uuid) . '/object-lock', [
+            'default_retention' => $defaultRetention,
+            'accept_object_lock_terms' => $acceptObjectLockTerms,
+        ]);
     }
 
     /**
@@ -107,15 +138,27 @@ class ObjectStorageService
      * Delete a bucket. Without $force only an empty bucket is deleted; with $force its content
      * is purged first. Protected buckets and buckets served by a CDN origin cannot be deleted.
      *
+     * On a bucket with Object Lock, $bypassGovernance (only with $force) also deletes the
+     * versions under governance retention. Versions under compliance or a legal hold are always
+     * kept: the bucket comes back with locked_content_kept set and keeps being billed.
+     *
      * @param string $uuid
-     * @param bool   $force Purge the bucket content first
+     * @param bool   $force            Purge the bucket content first
+     * @param bool   $bypassGovernance Also delete versions under governance retention
      * @return array Contains detail
      */
-    public function deleteBucket(string $uuid, bool $force = false): array
+    public function deleteBucket(string $uuid, bool $force = false, bool $bypassGovernance = false): array
     {
-        $path = '/object-storage/buckets/' . rawurlencode($uuid);
+        $query = [];
         if ($force) {
-            $path .= '?force=true';
+            $query['force'] = 'true';
+        }
+        if ($bypassGovernance) {
+            $query['bypass_governance'] = 'true';
+        }
+        $path = '/object-storage/buckets/' . rawurlencode($uuid);
+        if (!empty($query)) {
+            $path .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
         }
         return $this->client->delete($path);
     }
@@ -130,7 +173,7 @@ class ObjectStorageService
      *     @type string $tier       Tier uuid or slug (optional)
      * }
      * @return array List of keys (uuid, name, access_key_id, permission, bucket_scope, project_id,
-     *               tier, region, endpoint, status, expires_at)
+     *               tier, region, endpoint, status, expires_at, bypass_governance)
      */
     public function listKeys(array $filters = []): array
     {
@@ -147,9 +190,12 @@ class ObjectStorageService
      *     @type int      $project_id   Project ID (optional)
      *     @type string[] $bucket_uuids Limit the key to these buckets (optional, default: every bucket)
      *     @type string   $expires_at   ISO 8601 expiry (optional)
+     *     @type bool     $bypass_governance read_write keys only: may delete versions under
+     *                                  governance retention; cannot be changed later (optional)
      * }
      * @return array Contains detail, uuid, name, access_key_id, secret_access_key, permission,
-     *               bucket_scope, project_id, tier, region, endpoint, status ("pending"), expires_at
+     *               bucket_scope, project_id, tier, region, endpoint, status ("pending"), expires_at,
+     *               bypass_governance
      */
     public function createKey(array $params): array
     {
