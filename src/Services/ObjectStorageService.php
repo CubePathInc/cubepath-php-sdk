@@ -110,6 +110,51 @@ class ObjectStorageService
         return $this->client->delete($path);
     }
 
+    // --- Lifecycle rules ---
+
+    /**
+     * The lifecycle rules of a bucket and whether they are applied.
+     *
+     * @param string $uuid
+     * @return array Contains bucket_uuid, status (none, pending, active, paused, error), rules,
+     *               platform_rules, generation, applied_generation, error, updated_at, notes
+     */
+    public function getBucketLifecycle(string $uuid): array
+    {
+        return $this->client->get('/object-storage/buckets/' . rawurlencode($uuid) . '/lifecycle');
+    }
+
+    /**
+     * Replace every lifecycle rule of a bucket (1 to 100 rules). Expiration rules delete objects
+     * permanently. The change is applied asynchronously: poll getBucketLifecycle() until
+     * applied_generation reaches the returned generation.
+     *
+     * Rule: ['id' => 'logs-30d', 'enabled' => true, 'filter' => ['prefix' => 'logs/'],
+     * 'expiration' => ['days' => 30]]. Also 'expiration' => ['date' => 'YYYY-MM-DD'] or
+     * ['expired_object_delete_marker' => true], 'noncurrent_version_expiration' =>
+     * ['noncurrent_days' => 30, 'newer_noncurrent_versions' => 3] and
+     * 'abort_incomplete_multipart_upload' => ['days_after_initiation' => 2].
+     *
+     * @param string $uuid
+     * @param array  $rules List of rules
+     * @return array Contains detail, generation (absent when nothing changed) and notes
+     */
+    public function putBucketLifecycle(string $uuid, array $rules): array
+    {
+        return $this->client->put('/object-storage/buckets/' . rawurlencode($uuid) . '/lifecycle', ['rules' => $rules]);
+    }
+
+    /**
+     * Remove every lifecycle rule of a bucket.
+     *
+     * @param string $uuid
+     * @return array Contains detail and generation (absent when the bucket had no rules)
+     */
+    public function deleteBucketLifecycle(string $uuid): array
+    {
+        return $this->client->delete('/object-storage/buckets/' . rawurlencode($uuid) . '/lifecycle');
+    }
+
     // --- Access keys ---
 
     /**

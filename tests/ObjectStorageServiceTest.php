@@ -141,4 +141,28 @@ class ObjectStorageServiceTest extends TestCase
         );
         $this->assertEquals('b1', $origin['object_storage_bucket_uuid']);
     }
+
+    public function testBucketLifecycle(): void
+    {
+        $client = $this->createClient([
+            new Response(200, [], '{"bucket_uuid":"b1","status":"active","generation":2,"applied_generation":2,"rules":[{"id":"logs-30d","enabled":true}]}'),
+            new Response(202, [], '{"detail":"Lifecycle rules are being applied","generation":3,"notes":[]}'),
+            new Response(202, [], '{"detail":"Lifecycle rules are being removed","generation":4}'),
+        ]);
+        $lifecycle = $client->objectStorage()->getBucketLifecycle('b1');
+        $this->assertEquals('GET', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/buckets/b1/lifecycle', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals('logs-30d', $lifecycle['rules'][0]['id']);
+
+        $rules = [['id' => 'logs-30d', 'enabled' => true, 'filter' => ['prefix' => 'logs/'], 'expiration' => ['days' => 30]]];
+        $change = $client->objectStorage()->putBucketLifecycle('b1', $rules);
+        $this->assertEquals('PUT', $this->lastRequest()->getMethod());
+        $this->assertEquals(['rules' => $rules], $this->lastBody());
+        $this->assertEquals(3, $change['generation']);
+
+        $change = $client->objectStorage()->deleteBucketLifecycle('b1');
+        $this->assertEquals('DELETE', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/buckets/b1/lifecycle', $this->lastRequest()->getUri()->getPath());
+        $this->assertEquals(4, $change['generation']);
+    }
 }
