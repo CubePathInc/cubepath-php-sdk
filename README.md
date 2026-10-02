@@ -547,6 +547,31 @@ origin stops serving it):
 $origin = $client->cdn()->createBucketOrigin($zoneUuid, $bucket['uuid'], 'assets');
 ```
 
+#### Presigned URLs
+
+This SDK talks to the CubePath API, not to S3. To share one object for a while, sign a
+presigned GET URL with the official S3 SDK and one of your access keys: endpoint
+`https://eu.cubestorage.io`, region `eu`, path style, SigV4. A URL lasts at most 24 hours
+(86400 seconds), the file is always downloaded as an attachment (do not set
+`ResponseContentDisposition` or any other `response-*` override: they are refused) and every
+download counts as egress of the bucket. Deleting the access key that signed a URL cuts it
+before it expires. From a terminal, `cubecli s3 presign <bucket>/<key> --expires 6h` does the
+same.
+
+```php
+use Aws\S3\S3Client;
+
+$s3 = new S3Client([
+    'version' => 'latest',
+    'region' => 'eu',
+    'endpoint' => 'https://eu.cubestorage.io',
+    'use_path_style_endpoint' => true,
+    'credentials' => ['key' => $key['access_key_id'], 'secret' => $key['secret_access_key']],
+]);
+$command = $s3->getCommand('GetObject', ['Bucket' => 'my-backups', 'Key' => 'reports/2026-09.pdf']);
+$url = (string) $s3->createPresignedRequest($command, '+24 hours')->getUri();
+```
+
 ### Managed Databases
 
 MySQL, PostgreSQL and Valkey clusters. The plan decides the location. Creating, scaling,
