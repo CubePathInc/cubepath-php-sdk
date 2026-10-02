@@ -544,6 +544,10 @@ $os->updateBucket($bucket['uuid'], ['tags' => ['env' => 'staging']]);
 $prod = $os->listBuckets(['tags' => ['env=prod', 'team']]);
 $usage = $os->getUsage(['period' => '2026-09']);
 
+// Charts of one bucket (GraphQL): stored size and objects, traffic and responses per step
+// over H1, H3, H6, H12, H24 (default), D3, D7 or D30
+$metrics = $os->bucketMetrics($bucket['uuid'], 'D7');
+
 $os->deleteKey($key['uuid']);
 $os->deleteBucket($bucket['uuid'], true); // true purges the content first
 ```
