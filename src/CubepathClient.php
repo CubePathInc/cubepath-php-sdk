@@ -27,7 +27,7 @@ use Cubepath\Services\TranscoderService;
 
 class CubepathClient
 {
-    const VERSION = '0.7.0';
+    const VERSION = '0.8.0';
     const DEFAULT_BASE_URL = 'https://api.cubepath.com';
     const DEFAULT_AI_GATEWAY_BASE_URL = 'https://ai-gateway.cubepath.com';
     const DEFAULT_TIMEOUT = 30;
