@@ -701,6 +701,14 @@ $rule = $client->objectStorage()->createEventRule($bucket['uuid'], [
 $client->objectStorage()->testEventDestination($created['destination']['uuid']); // sends a cubepath.ping
 $page = $client->objectStorage()->listEventDeliveries($created['destination']['uuid'], ['status' => 'failed']);
 // Older page: ['before' => $page['next_before']] while next_before is not null (unix milliseconds).
+
+// Manage them: pause a rule, rotate the secret, delete (a destination only once it has no rules)
+$rules = $client->objectStorage()->listEventRules($bucket['uuid']);
+$client->objectStorage()->updateEventRule($bucket['uuid'], $rule['uuid'], ['enabled' => false]);
+$newSecret = $client->objectStorage()->rotateEventDestinationSecret($created['destination']['uuid'])['signing_secret'];
+$client->objectStorage()->deleteEventRule($bucket['uuid'], $rule['uuid']);
+$destinations = $client->objectStorage()->listEventDestinations();
+$client->objectStorage()->deleteEventDestination($created['destination']['uuid']);
 ```
 
 Verify every webhook delivery before trusting it, against the raw body. `CubePath-Signature`
