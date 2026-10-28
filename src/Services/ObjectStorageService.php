@@ -552,7 +552,7 @@ class ObjectStorageService
      *     @type string[] $bucket_uuids Limit the key to these buckets (optional, default: every bucket)
      *     @type string   $expires_at   ISO 8601 expiry (optional)
      *     @type bool     $bypass_governance read_write keys only: may delete versions under
-     *                                  governance retention; cannot be changed later (optional)
+     *                                  governance retention (optional)
      * }
      * @return array Contains detail, uuid, name, access_key_id, secret_access_key, permission,
      *               bucket_scope, project_id, tier, region, endpoint, status ("pending"), expires_at,
@@ -561,6 +561,41 @@ class ObjectStorageService
     public function createKey(array $params): array
     {
         return $this->client->post('/object-storage/keys', $params);
+    }
+
+    /**
+     * Edit an access key in place: the access key id and the secret do not change. The expiration,
+     * tier and project are fixed at creation. Send only what changes. A change of permission,
+     * buckets or bypass needs an active key; RustFS enforces it within a few seconds.
+     *
+     * @param string $uuid
+     * @param array  $params {
+     *     @type string   $name              Key name, 1 to 100 characters (optional)
+     *     @type string   $permission        "read_write" or "read_only" (optional)
+     *     @type string[] $bucket_uuids      Limit the key to these buckets, at most 20 (optional, leave it
+     *                                       out to keep them; not with all_buckets)
+     *     @type bool     $all_buckets       true: every bucket of the project in the tier, future ones
+     *                                       included (sent as "bucket_uuids": null) (optional)
+     *     @type bool     $bypass_governance read_write keys only: may delete versions under governance
+     *                                       retention; send false too when turning a key into read_only (optional)
+     * }
+     * @return array Contains detail
+     * @throws \InvalidArgumentException If bucket_uuids is empty or sent together with all_buckets
+     */
+    public function updateKey(string $uuid, array $params): array
+    {
+        $allBuckets = !empty($params['all_buckets']);
+        unset($params['all_buckets']);
+        if ($allBuckets && array_key_exists('bucket_uuids', $params)) {
+            throw new \InvalidArgumentException('bucket_uuids and all_buckets are mutually exclusive');
+        }
+        if (array_key_exists('bucket_uuids', $params) && (!is_array($params['bucket_uuids']) || $params['bucket_uuids'] === [])) {
+            throw new \InvalidArgumentException('bucket_uuids must be a non-empty list; use all_buckets for every bucket');
+        }
+        if ($allBuckets) {
+            $params['bucket_uuids'] = null;
+        }
+        return $this->client->patch('/object-storage/keys/' . rawurlencode($uuid), $params);
     }
 
     /**

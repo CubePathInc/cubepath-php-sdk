@@ -548,6 +548,13 @@ $usage = $os->getUsage(['period' => '2026-09']);
 // over H1, H3, H6, H12, H24 (default), D3, D7 or D30
 $metrics = $os->bucketMetrics($bucket['uuid'], 'D7');
 
+// Edit a key in place (same access key id and secret); send only what changes. The expiration,
+// tier and project are fixed at creation. 'all_buckets' => true means every bucket of the project,
+// future ones included, and cannot be combined with 'bucket_uuids'
+$os->updateKey($key['uuid'], ['name' => 'backup-job-2', 'permission' => 'read_only', 'bypass_governance' => false]);
+$os->updateKey($key['uuid'], ['bucket_uuids' => [$bucket['uuid']]]);
+$os->updateKey($key['uuid'], ['all_buckets' => true]);
+
 $os->deleteKey($key['uuid']);
 $os->deleteBucket($bucket['uuid'], true); // true purges the content first
 ```

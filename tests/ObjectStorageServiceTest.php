@@ -159,6 +159,53 @@ class ObjectStorageServiceTest extends TestCase
         $this->assertEquals('/object-storage/keys/k1', $this->lastRequest()->getUri()->getPath());
     }
 
+    public function testUpdateKey(): void
+    {
+        $ok = '{"detail":"Access key updated."}';
+        $client = $this->createClient(array_fill(0, 5, new Response(200, [], $ok)));
+        $os = $client->objectStorage();
+
+        $res = $os->updateKey('k1', ['name' => 'renamed']);
+        $this->assertEquals('PATCH', $this->lastRequest()->getMethod());
+        $this->assertEquals('/object-storage/keys/k1', $this->lastRequest()->getUri()->getPath());
+        $this->assertSame('{"name":"renamed"}', (string) $this->lastRequest()->getBody());
+        $this->assertEquals('Access key updated.', $res['detail']);
+
+        $os->updateKey('k1', ['permission' => 'read_only', 'bypass_governance' => false]);
+        $this->assertSame('{"permission":"read_only","bypass_governance":false}', (string) $this->lastRequest()->getBody());
+
+        $os->updateKey('k1', ['bucket_uuids' => ['b1', 'b2']]);
+        $this->assertSame('{"bucket_uuids":["b1","b2"]}', (string) $this->lastRequest()->getBody());
+
+        $os->updateKey('k1', ['all_buckets' => true]);
+        $this->assertSame('{"bucket_uuids":null}', (string) $this->lastRequest()->getBody());
+
+        $os->updateKey('k1', ['all_buckets' => false, 'bypass_governance' => true]);
+        $this->assertSame('{"bypass_governance":true}', (string) $this->lastRequest()->getBody());
+    }
+
+    public function testUpdateKeyRejectsInvalidBucketScope(): void
+    {
+        $client = $this->createClient([]);
+        $os = $client->objectStorage();
+
+        try {
+            $os->updateKey('k1', ['bucket_uuids' => ['b1'], 'all_buckets' => true]);
+            $this->fail('Expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('mutually exclusive', $e->getMessage());
+        }
+
+        try {
+            $os->updateKey('k1', ['bucket_uuids' => []]);
+            $this->fail('Expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('all_buckets', $e->getMessage());
+        }
+
+        $this->assertCount(0, $this->requestHistory);
+    }
+
     public function testUsage(): void
     {
         $client = $this->createClient([new Response(200, [], '{"period":"2026-09","available_months":["2026-09"]}')]);
