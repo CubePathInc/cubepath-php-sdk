@@ -16,7 +16,8 @@ class Webhooks
      * each the HMAC-SHA256 of timestamp + "." + body. Deliveries whose timestamp is further than
      * $tolerance seconds (default 300) from now are rejected; 0 skips that check.
      *
-     * @throws StorageEventSignatureException when the delivery is not valid
+     * @throws StorageEventSignatureException when the delivery is not valid, and when $secret is
+     *     empty, so a secret that was never configured verifies nothing
      */
     public static function verifyStorageEventSignature(
         string $secret,
@@ -26,8 +27,11 @@ class Webhooks
         int $tolerance = 300,
         ?int $now = null
     ): void {
+        if ($secret === '') {
+            throw new StorageEventSignatureException('The signing secret is empty');
+        }
         $ts = trim($timestamp);
-        if (!ctype_digit($ts)) {
+        if (preg_match('/\A[0-9]{1,12}\z/', $ts) !== 1) {
             throw new StorageEventSignatureException('Invalid timestamp');
         }
         $now = $now ?? time();

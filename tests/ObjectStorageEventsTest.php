@@ -115,4 +115,31 @@ class ObjectStorageEventsTest extends TestCase
         $this->expectException(StorageEventSignatureException::class);
         Webhooks::verifyStorageEventSignature(self::SECRET, $ts, $body, $header, 300, $now);
     }
+
+    public function testEmptySecretRejected(): void
+    {
+        $header = 'v1=' . hash_hmac('sha256', self::TS . '.' . self::BODY, '');
+        $this->expectException(StorageEventSignatureException::class);
+        Webhooks::verifyStorageEventSignature('', self::TS, self::BODY, $header, 300, self::NOW);
+    }
+
+    public function malformedTimestampProvider(): array
+    {
+        return [
+            'beyond the integer range' => [str_repeat('9', 20)],
+            'negative' => ['-1'],
+            'plus sign' => ['+1790000000'],
+            'trailing line break inside' => ["1790000000\n1"],
+        ];
+    }
+
+    /**
+     * @dataProvider malformedTimestampProvider
+     */
+    public function testMalformedTimestampRejected(string $ts): void
+    {
+        $header = 'v1=' . hash_hmac('sha256', $ts . '.' . self::BODY, self::SECRET);
+        $this->expectException(StorageEventSignatureException::class);
+        Webhooks::verifyStorageEventSignature(self::SECRET, $ts, self::BODY, $header, 0, self::NOW);
+    }
 }
