@@ -3,6 +3,7 @@
 namespace Cubepath\Services;
 
 use Cubepath\APIError;
+use Cubepath\BaremetalRef;
 use Cubepath\CubepathClient;
 
 class BaremetalService
@@ -48,26 +49,28 @@ class BaremetalService
     }
 
     /**
-     * Get a single baremetal server by ID.
-     * Iterates through all projects to find the server.
+     * Get a single baremetal server by number or uuid.
+     * Iterates through all projects to find the server, matching its "id" as text or its "uuid"
+     * (the uuid is only present once the API returns it).
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array
      * @throws \RuntimeException if not found
      */
-    public function get(int $baremetalId): array
+    public function get($baremetalId): array
     {
+        $ref = BaremetalRef::normalize($baremetalId);
         $projects = $this->list();
         foreach ($projects as $project) {
             if (isset($project['baremetals']) && is_array($project['baremetals'])) {
                 foreach ($project['baremetals'] as $bm) {
-                    if (isset($bm['id']) && $bm['id'] === $baremetalId) {
+                    if (is_array($bm) && BaremetalRef::matches($bm, $ref)) {
                         return $bm;
                     }
                 }
             }
         }
-        throw new \RuntimeException("Baremetal server {$baremetalId} not found");
+        throw new \RuntimeException("Baremetal server {$ref} not found");
     }
 
     /**
@@ -94,23 +97,25 @@ class BaremetalService
     /**
      * List the operating systems and disk layouts that can be installed on a server.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array List of options (id, os_name, operating_system, disk_layouts)
      */
-    public function listOS(int $baremetalId): array
+    public function listOS($baremetalId): array
     {
-        return $this->client->get("/baremetal/os/{$baremetalId}");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->get("/baremetal/os/{$ref}");
     }
 
     /**
      * Get the KVM console access of a server that has one.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array Contains url, username, password, updated_at
      */
-    public function kvm(int $baremetalId): array
+    public function kvm($baremetalId): array
     {
-        return $this->client->get("/baremetal/{$baremetalId}/kvm");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->get("/baremetal/{$ref}/kvm");
     }
 
     /**
@@ -120,9 +125,10 @@ class BaremetalService
      * @param bool $enabled
      * @return array
      */
-    public function protection(int $baremetalId, bool $enabled): array
+    public function protection($baremetalId, bool $enabled): array
     {
-        return $this->client->post("/baremetal/{$baremetalId}/protection", [
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->post("/baremetal/{$ref}/protection", [
             'enabled' => $enabled,
         ]);
     }
@@ -130,13 +136,14 @@ class BaremetalService
     /**
      * Move a baremetal server to another project of the organization.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @param int $projectId Destination project ID
      * @return array
      */
-    public function moveToProject(int $baremetalId, int $projectId): array
+    public function moveToProject($baremetalId, int $projectId): array
     {
-        return $this->client->post("/baremetal/{$baremetalId}/move-project", [
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->post("/baremetal/{$ref}/move-project", [
             'project_id' => $projectId,
         ]);
     }
@@ -144,37 +151,40 @@ class BaremetalService
     /**
      * Add SSH keys to a baremetal server.
      *
-     * @param int   $baremetalId
+     * @param int|string $baremetalId Server number or uuid
      * @param int[] $sshKeyIds
      * @return array
      */
-    public function addSSHKeys(int $baremetalId, array $sshKeyIds): array
+    public function addSSHKeys($baremetalId, array $sshKeyIds): array
     {
-        return $this->client->post("/baremetal/{$baremetalId}/ssh-keys", array_values(array_map('intval', $sshKeyIds)));
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->post("/baremetal/{$ref}/ssh-keys", array_values(array_map('intval', $sshKeyIds)));
     }
 
     /**
      * Remove an SSH key from a baremetal server.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @param int $sshKeyId
      * @return array
      */
-    public function removeSSHKey(int $baremetalId, int $sshKeyId): array
+    public function removeSSHKey($baremetalId, int $sshKeyId): array
     {
-        return $this->client->delete("/baremetal/{$baremetalId}/ssh-keys/{$sshKeyId}");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->delete("/baremetal/{$ref}/ssh-keys/{$sshKeyId}");
     }
 
     /**
      * Attach the server to a private network in its location.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @param int $networkId
      * @return array
      */
-    public function attachNetwork(int $baremetalId, int $networkId): array
+    public function attachNetwork($baremetalId, int $networkId): array
     {
-        return $this->client->post("/baremetal/{$baremetalId}/network", [
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->post("/baremetal/{$ref}/network", [
             'network_id' => $networkId,
         ]);
     }
@@ -182,18 +192,19 @@ class BaremetalService
     /**
      * Detach the server from its private network.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array
      */
-    public function detachNetwork(int $baremetalId): array
+    public function detachNetwork($baremetalId): array
     {
-        return $this->client->delete("/baremetal/{$baremetalId}/network");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->delete("/baremetal/{$ref}/network");
     }
 
     /**
      * Update a baremetal server.
      *
-     * @param int   $baremetalId
+     * @param int|string $baremetalId Server number or uuid
      * @param array $params {
      *     @type string $hostname New hostname (optional)
      *     @type string $label    New label (optional)
@@ -201,62 +212,67 @@ class BaremetalService
      * }
      * @return array
      */
-    public function update(int $baremetalId, array $params): array
+    public function update($baremetalId, array $params): array
     {
-        return $this->client->patch("/baremetal/update/{$baremetalId}", $params);
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->patch("/baremetal/update/{$ref}", $params);
     }
 
     /**
      * Control baremetal power state.
      *
-     * @param int    $baremetalId
+     * @param int|string $baremetalId Server number or uuid
      * @param string $action One of: start, stop, reboot, reset
      * @return array
      */
-    public function power(int $baremetalId, string $action): array
+    public function power($baremetalId, string $action): array
     {
-        return $this->client->post("/baremetal/{$baremetalId}/power/{$action}");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->post("/baremetal/{$ref}/power/{$action}");
     }
 
     /**
      * Activate rescue mode.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array Contains detail, username, password
      */
-    public function rescue(int $baremetalId): array
+    public function rescue($baremetalId): array
     {
-        return $this->client->post("/baremetal/{$baremetalId}/rescue");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->post("/baremetal/{$ref}/rescue");
     }
 
     /**
      * Reset BMC (IPMI controller).
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array
      */
-    public function resetBMC(int $baremetalId): array
+    public function resetBMC($baremetalId): array
     {
-        return $this->client->post("/baremetal/{$baremetalId}/reset-bmc");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->post("/baremetal/{$ref}/reset-bmc");
     }
 
     /**
      * Temperatures and fan speeds from the last BMC poll, served through GraphQL.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array Contains ipmi_available, power_on, last_seen (Unix time or null) and
      *               sensors.temperatures / sensors.fans (name, value, unit CELSIUS or RPM).
      *               node is kept for compatibility and is always empty.
      * @throws APIError 404 when the server does not exist
      */
-    public function bmcSensors(int $baremetalId): array
+    public function bmcSensors($baremetalId): array
     {
+        $ref = BaremetalRef::normalize($baremetalId);
         $data = $this->client->graphql(
             'query($id: ID!) { baremetal(id: $id) { sensors { ipmiAvailable powerOn lastSeen temperatures { name value unit } fans { name value unit } } } }',
-            ['id' => (string) $baremetalId]
+            ['id' => $ref]
         );
         if (empty($data['baremetal'])) {
-            throw new APIError(404, "Baremetal {$baremetalId} not found");
+            throw new APIError(404, "Baremetal {$ref} not found");
         }
         $s = $data['baremetal']['sensors'];
         return [
@@ -274,18 +290,19 @@ class BaremetalService
     /**
      * Create an IPMI proxy session for remote console.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array Contains proxy_url, credentials
      */
-    public function ipmiSession(int $baremetalId): array
+    public function ipmiSession($baremetalId): array
     {
-        return $this->client->post("/ipmi-proxy/create-session/{$baremetalId}");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->post("/ipmi-proxy/create-session/{$ref}");
     }
 
     /**
      * Reinstall OS on baremetal server.
      *
-     * @param int   $baremetalId
+     * @param int|string $baremetalId Server number or uuid
      * @param array $params {
      *     @type string $os_name          OS name
      *     @type string $password         Root password
@@ -296,19 +313,20 @@ class BaremetalService
      * }
      * @return array
      */
-    public function reinstall(int $baremetalId, array $params): array
+    public function reinstall($baremetalId, array $params): array
     {
-        return $this->client->post("/baremetal/{$baremetalId}/reinstall", $params);
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->post("/baremetal/{$ref}/reinstall", $params);
     }
 
     /**
      * Whether an OS reinstallation is running. There is no dedicated endpoint any more: a
      * server is reinstalling while its status is "deploying".
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array Contains is_reinstalling, status, os_name (always empty, kept for compatibility)
      */
-    public function reinstallStatus(int $baremetalId): array
+    public function reinstallStatus($baremetalId): array
     {
         $bm = $this->get($baremetalId);
         $status = $bm['status'] ?? '';
@@ -318,33 +336,36 @@ class BaremetalService
     /**
      * Cancel a pending or running OS reinstallation.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array
      */
-    public function cancelReinstall(int $baremetalId): array
+    public function cancelReinstall($baremetalId): array
     {
-        return $this->client->delete("/baremetal/{$baremetalId}/reinstall");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->delete("/baremetal/{$ref}/reinstall");
     }
 
     /**
      * Enable monitoring for a baremetal server.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array
      */
-    public function monitoringEnable(int $baremetalId): array
+    public function monitoringEnable($baremetalId): array
     {
-        return $this->client->put("/baremetal/{$baremetalId}/monitoring?enable=true");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->put("/baremetal/{$ref}/monitoring?enable=true");
     }
 
     /**
      * Disable monitoring for a baremetal server.
      *
-     * @param int $baremetalId
+     * @param $baremetalId
      * @return array
      */
-    public function monitoringDisable(int $baremetalId): array
+    public function monitoringDisable($baremetalId): array
     {
-        return $this->client->put("/baremetal/{$baremetalId}/monitoring?enable=false");
+        $ref = BaremetalRef::normalize($baremetalId);
+        return $this->client->put("/baremetal/{$ref}/monitoring?enable=false");
     }
 }

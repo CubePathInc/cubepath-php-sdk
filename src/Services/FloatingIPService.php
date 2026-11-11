@@ -2,6 +2,7 @@
 
 namespace Cubepath\Services;
 
+use Cubepath\BaremetalRef;
 use Cubepath\CubepathClient;
 
 class FloatingIPService
@@ -52,12 +53,19 @@ class FloatingIPService
      * Assign a floating IP to a resource (VPS or baremetal).
      *
      * @param string $resourceType "vps" or "baremetal"
-     * @param int    $resourceId   Resource ID
+     * @param int|string $resourceId Resource ID. For "baremetal" the server number or uuid; for "vps" the VPS ID
      * @param string $address      IP address to assign
      * @return array
      */
-    public function assign(string $resourceType, int $resourceId, string $address): array
+    public function assign(string $resourceType, $resourceId, string $address): array
     {
+        if ($resourceType === 'baremetal') {
+            $resourceId = BaremetalRef::normalize($resourceId);
+        } elseif (is_string($resourceId) && preg_match('/\A[0-9]+\z/', $resourceId) === 1) {
+            $resourceId = (int) $resourceId;
+        } elseif (!is_int($resourceId)) {
+            throw new \InvalidArgumentException('Resource ID must be an integer for ' . $resourceType);
+        }
         return $this->client->post(
             "/floating_ips/assign/{$resourceType}/{$resourceId}?address={$address}"
         );
