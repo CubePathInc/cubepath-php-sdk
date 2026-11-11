@@ -60,7 +60,7 @@ class CloudAlertService
      *     @type string $description      (optional)
      *     @type string $target_type      "vps", "baremetal", "availability_group",
      *                                    "object_storage_bucket" or "organization" (required)
-     *     @type string $target_id        VPS or baremetal ID, availability group or bucket UUID, or
+     *     @type string $target_id        VPS ID or baremetal server NUMBER (not the uuid), availability group or bucket UUID, or
      *                                    the organization ID as a string (required). A bucket alert
      *                                    must be created in the bucket's project; an organization
      *                                    alert is listed under project_id and deleted with it.

@@ -86,7 +86,7 @@ class NetworkService
      * @param array $params {
      *     @type string $destination    CIDR destination (e.g., "192.168.1.0/24")
      *     @type string $next_hop_type  Next-hop type: "ip", "vps", or "baremetal"
-     *     @type string $next_hop_target  IP address or resource identifier of the next hop
+     *     @type string $next_hop_target  IP address, VPS ID or baremetal server NUMBER of the next hop (not the uuid)
      *     @type string $description    Human-readable description (optional)
      * }
      * @return array Contains route id, detail
@@ -142,7 +142,7 @@ class NetworkService
      * @param int   $networkId
      * @param array $params {
      *     @type string $peer_type   "ip", "vps" or "baremetal" (required)
-     *     @type string $peer_target Private IP, or the VPS or baremetal ID (required)
+     *     @type string $peer_target Private IP, or the VPS ID or baremetal server NUMBER (required, not the uuid)
      *     @type int    $remote_asn  ASN of the peer, not 64512 (required)
      *     @type int    $max_prefix  Max prefixes accepted (optional, default 100)
      *     @type string $description (optional)

@@ -184,7 +184,14 @@ $client->vps()->isos()->unmount($vpsId);
 
 ### Baremetal
 
+A server is named by its number or its uuid (the `id` and `uuid` fields of a server). Every method below
+takes either, as an int or as text; anything else throws `InvalidArgumentException` before a request is
+sent. The `uuid` field is present once the API returns it.
+
 ```php
+// $baremetalId is the server number (5 or '5') or its uuid ('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01')
+$server = $client->baremetal()->get($baremetalId);
+
 // Deploy a bare metal server
 $task = $client->baremetal()->deploy($projectId, [
     'model_name' => 'c1.metal.plus',
@@ -245,7 +252,8 @@ $client->networks()->update($networkId, ['label' => 'production']);
 // Move it to another project
 $client->networks()->moveToProject($networkId, $otherProjectId);
 
-// BGP peers: a VPS, baremetal server or IP of the network announcing routes
+// BGP peers: a VPS, baremetal server or IP of the network announcing routes.
+// For a baremetal server, peer_target is the server NUMBER (a uuid is refused there)
 $client->networks()->createBGPPeer($networkId, [
     'peer_type' => 'vps',
     'peer_target' => (string) $vpsId,
@@ -262,8 +270,9 @@ $client->networks()->deleteBGPPeer($networkId, $peers[0]['id']);
 // Acquire a floating IP
 $ip = $client->floatingIPs()->acquire('ipv4', 'us-mia-1');
 
-// Assign to a VPS
+// Assign to a VPS, or to a baremetal server (by number or uuid)
 $client->floatingIPs()->assign('vps', $vpsId, $ip['address']);
+$client->floatingIPs()->assign('baremetal', $baremetalId, $ip['address']);
 
 // Configure reverse DNS
 $client->floatingIPs()->configureReverseDNS($ip['address'], 'web.example.com');

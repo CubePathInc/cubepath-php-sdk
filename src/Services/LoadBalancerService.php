@@ -135,7 +135,7 @@ class LoadBalancerService
      *
      * @param string $lbUUID
      * @param string $listenerUUID
-     * @param array  $targets List of {target_type, target_uuid, port, weight, enabled}
+     * @param array  $targets List of {target_type, target_uuid, port, weight, enabled}; for a baremetal server target_uuid is the server NUMBER (not the uuid)
      * @return array Contains detail, targets
      */
     public function addTargets(string $lbUUID, string $listenerUUID, array $targets): array
