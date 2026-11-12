@@ -120,7 +120,7 @@ class BaremetalService
     /**
      * Enable or disable delete protection.
      *
-     * @param int  $baremetalId
+     * @param string $baremetalId Server uuid
      * @param bool $enabled
      * @return array
      */
