@@ -184,12 +184,17 @@ $client->vps()->isos()->unmount($vpsId);
 
 ### Baremetal
 
-A server is named by its number or its uuid (the `id` and `uuid` fields of a server). Every method below
-takes either, as an int or as text; anything else throws `InvalidArgumentException` before a request is
-sent. The `uuid` field is present once the API returns it.
+A server is named by its uuid: the `id` of a server is its uuid, and `uuid` carries the same value. Every
+method below takes the uuid; anything else, a server number included, throws `InvalidArgumentException`
+(`Baremetal reference must be a uuid`) before a request is sent. The fields that name a server inside
+other objects (route next hop, BGP peer, load balancer target, alert target, floating IP assignment) take
+the uuid too when their type is `baremetal`.
+
+**Breaking change (unreleased):** the API no longer knows server numbers. Code that passed a number, or
+that read `id` as a number, has to use the uuid shown in the dashboard and returned in `id`.
 
 ```php
-// $baremetalId is the server number (5 or '5') or its uuid ('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01')
+// $baremetalId is the server uuid, for example '3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01'
 $server = $client->baremetal()->get($baremetalId);
 
 // Deploy a bare metal server
@@ -253,7 +258,7 @@ $client->networks()->update($networkId, ['label' => 'production']);
 $client->networks()->moveToProject($networkId, $otherProjectId);
 
 // BGP peers: a VPS, baremetal server or IP of the network announcing routes.
-// For a baremetal server, peer_target is the server NUMBER (a uuid is refused there)
+// For a baremetal server, peer_target is the server uuid
 $client->networks()->createBGPPeer($networkId, [
     'peer_type' => 'vps',
     'peer_target' => (string) $vpsId,
@@ -270,7 +275,7 @@ $client->networks()->deleteBGPPeer($networkId, $peers[0]['id']);
 // Acquire a floating IP
 $ip = $client->floatingIPs()->acquire('ipv4', 'us-mia-1');
 
-// Assign to a VPS, or to a baremetal server (by number or uuid)
+// Assign to a VPS, or to a baremetal server (by uuid)
 $client->floatingIPs()->assign('vps', $vpsId, $ip['address']);
 $client->floatingIPs()->assign('baremetal', $baremetalId, $ip['address']);
 

@@ -2,6 +2,7 @@
 
 namespace Cubepath\Services;
 
+use Cubepath\BaremetalRef;
 use Cubepath\CubepathClient;
 
 /**
@@ -60,7 +61,7 @@ class CloudAlertService
      *     @type string $description      (optional)
      *     @type string $target_type      "vps", "baremetal", "availability_group",
      *                                    "object_storage_bucket" or "organization" (required)
-     *     @type string $target_id        VPS ID or baremetal server NUMBER (not the uuid), availability group or bucket UUID, or
+     *     @type string $target_id        VPS ID, baremetal server uuid, availability group or bucket UUID, or
      *                                    the organization ID as a string (required). A bucket alert
      *                                    must be created in the bucket's project; an organization
      *                                    alert is listed under project_id and deleted with it.
@@ -89,6 +90,9 @@ class CloudAlertService
      */
     public function create(array $params): array
     {
+        if (array_key_exists('target_id', $params)) {
+            $params['target_id'] = BaremetalRef::target($params['target_type'] ?? null, $params['target_id']);
+        }
         return $this->client->post('/triggers/', $params);
     }
 
@@ -102,6 +106,9 @@ class CloudAlertService
      */
     public function update(string $alertId, array $params): array
     {
+        if (array_key_exists('target_id', $params)) {
+            $params['target_id'] = BaremetalRef::target($params['target_type'] ?? null, $params['target_id']);
+        }
         return $this->client->put("/triggers/{$alertId}", $params);
     }
 

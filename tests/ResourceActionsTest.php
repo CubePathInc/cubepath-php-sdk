@@ -12,6 +12,8 @@ use Cubepath\CubepathClient;
 
 class ResourceActionsTest extends TestCase
 {
+    private const BM_UUID = '3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01';
+
     private array $requestHistory = [];
 
     private function createClient(int $responses): CubepathClient
@@ -110,22 +112,22 @@ class ResourceActionsTest extends TestCase
         $this->assertLast('GET', '/baremetal/');
         $bm->models();
         $this->assertLast('GET', '/baremetal/models');
-        $bm->listOS(4);
-        $this->assertLast('GET', '/baremetal/os/4');
-        $bm->kvm(4);
-        $this->assertLast('GET', '/baremetal/4/kvm');
-        $bm->protection(4, false);
-        $this->assertLast('POST', '/baremetal/4/protection', ['enabled' => false]);
-        $bm->moveToProject(4, 3);
-        $this->assertLast('POST', '/baremetal/4/move-project', ['project_id' => 3]);
-        $bm->addSSHKeys(4, [5]);
-        $this->assertLast('POST', '/baremetal/4/ssh-keys', [5]);
-        $bm->removeSSHKey(4, 5);
-        $this->assertLast('DELETE', '/baremetal/4/ssh-keys/5');
-        $bm->attachNetwork(4, 7);
-        $this->assertLast('POST', '/baremetal/4/network', ['network_id' => 7]);
-        $bm->detachNetwork(4);
-        $this->assertLast('DELETE', '/baremetal/4/network');
+        $bm->listOS(self::BM_UUID);
+        $this->assertLast('GET', '/baremetal/os/' . self::BM_UUID);
+        $bm->kvm(self::BM_UUID);
+        $this->assertLast('GET', '/baremetal/' . self::BM_UUID . '/kvm');
+        $bm->protection(self::BM_UUID, false);
+        $this->assertLast('POST', '/baremetal/' . self::BM_UUID . '/protection', ['enabled' => false]);
+        $bm->moveToProject(self::BM_UUID, 3);
+        $this->assertLast('POST', '/baremetal/' . self::BM_UUID . '/move-project', ['project_id' => 3]);
+        $bm->addSSHKeys(self::BM_UUID, [5]);
+        $this->assertLast('POST', '/baremetal/' . self::BM_UUID . '/ssh-keys', [5]);
+        $bm->removeSSHKey(self::BM_UUID, 5);
+        $this->assertLast('DELETE', '/baremetal/' . self::BM_UUID . '/ssh-keys/5');
+        $bm->attachNetwork(self::BM_UUID, 7);
+        $this->assertLast('POST', '/baremetal/' . self::BM_UUID . '/network', ['network_id' => 7]);
+        $bm->detachNetwork(self::BM_UUID);
+        $this->assertLast('DELETE', '/baremetal/' . self::BM_UUID . '/network');
     }
 
     public function testNetworkBGPPeersAndMove(): void

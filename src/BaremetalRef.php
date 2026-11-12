@@ -3,18 +3,18 @@
 namespace Cubepath;
 
 /**
- * How a baremetal server is named in a request: its number or its uuid.
+ * How a baremetal server is named in a request: its uuid.
  *
- * The public "id" of a server is a number and the API also returns a "uuid". Every
- * /baremetal/{ref} route accepts either one. The value is never cast to int: a uuid that
- * starts with a digit would otherwise turn into another server.
+ * The "id" of a server is its uuid, and "uuid" carries the same value. Every
+ * /baremetal/{uuid} route takes it, and so do the fields that name a server inside other
+ * objects (route next hop, BGP peer, load balancer target, alert target, floating IP
+ * assignment). A server number is not a reference any more.
  *
  * Only for baremetal servers. VPS and network helpers keep their own integer rules.
  */
 final class BaremetalRef
 {
     private const UUID_PATTERN = '/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i';
-    private const NUMBER_PATTERN = '/\A[0-9]+\z/';
 
     private function __construct()
     {
@@ -23,49 +23,42 @@ final class BaremetalRef
     /**
      * Validate a server reference and return it ready for a URL.
      *
-     * @param mixed $ref A number (int or digits only) or a uuid (any case)
-     * @return string The number as text, or the uuid in lower case
-     * @throws \InvalidArgumentException when it is neither a number nor a uuid
+     * @param mixed $ref The server uuid, in any case
+     * @return string The uuid in lower case
+     * @throws \InvalidArgumentException when it is not a uuid (a server number included)
      */
     public static function normalize($ref): string
     {
-        if (is_int($ref) && $ref >= 0) {
-            return (string) $ref;
-        }
-        if (is_string($ref)) {
-            if (preg_match(self::NUMBER_PATTERN, $ref) === 1) {
-                return $ref;
-            }
-            if (preg_match(self::UUID_PATTERN, $ref) === 1) {
-                return strtolower($ref);
-            }
+        if (is_string($ref) && preg_match(self::UUID_PATTERN, $ref) === 1) {
+            return strtolower($ref);
         }
         throw new \InvalidArgumentException(
-            'Baremetal reference must be a number or a uuid (8-4-4-4-12 hex), got ' . self::describe($ref)
+            'Baremetal reference must be a uuid (8-4-4-4-12 hex), got ' . self::describe($ref)
         );
     }
 
     /**
+     * Validate the target of a route, BGP peer, load balancer target or alert when its type is
+     * "baremetal" (the uuid, returned in lower case). Targets of other types are returned as given.
+     *
+     * @param mixed $type
+     * @param mixed $target
+     * @return mixed
+     */
+    public static function target($type, $target)
+    {
+        return $type === 'baremetal' ? self::normalize($target) : $target;
+    }
+
+    /**
      * Whether a server object from the API (/projects/ or GET /baremetal/) is the one named by $ref.
-     * Matches "id" as text (a number or a numeric string both work) or "uuid" when present.
      *
      * @param array  $server
      * @param string $ref    A value returned by normalize()
      */
     public static function matches(array $server, string $ref): bool
     {
-        if (preg_match(self::UUID_PATTERN, $ref) === 1) {
-            return isset($server['uuid']) && is_string($server['uuid']) && strtolower($server['uuid']) === $ref;
-        }
-        if (!isset($server['id']) || !(is_int($server['id']) || is_string($server['id']))) {
-            return false;
-        }
-        return self::stripZeros((string) $server['id']) === self::stripZeros($ref);
-    }
-
-    private static function stripZeros(string $number): string
-    {
-        return ltrim($number, '0');
+        return isset($server['id']) && is_string($server['id']) && strtolower($server['id']) === $ref;
     }
 
     private static function describe($value): string

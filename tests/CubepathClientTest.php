@@ -418,11 +418,11 @@ class CubepathClientTest extends TestCase
     {
         $client = $this->createClient([
             new Response(200, [], json_encode([
-                ['project' => ['id' => 1], 'baremetals' => [['id' => 5, 'hostname' => 'bm-found']]],
+                ['project' => ['id' => 1], 'baremetals' => [['id' => '3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01', 'uuid' => '3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01', 'hostname' => 'bm-found']]],
             ])),
         ]);
 
-        $bm = $client->baremetal()->get(5);
+        $bm = $client->baremetal()->get('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01');
         $this->assertEquals('bm-found', $bm['hostname']);
     }
 
@@ -432,8 +432,8 @@ class CubepathClientTest extends TestCase
             new Response(200, [], '{"detail": "OK"}'),
         ]);
 
-        $client->baremetal()->power(5, 'reboot');
-        $this->assertStringContainsString('/baremetal/5/power/reboot', (string) $this->lastRequest()->getUri());
+        $client->baremetal()->power('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01', 'reboot');
+        $this->assertStringContainsString('/baremetal/3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01/power/reboot', (string) $this->lastRequest()->getUri());
     }
 
     public function testBaremetalIPMISession(): void
@@ -442,8 +442,8 @@ class CubepathClientTest extends TestCase
             new Response(200, [], '{"proxy_url": "https://...", "credentials": {}}'),
         ]);
 
-        $client->baremetal()->ipmiSession(5);
-        $this->assertStringContainsString('/ipmi-proxy/create-session/5', (string) $this->lastRequest()->getUri());
+        $client->baremetal()->ipmiSession('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01');
+        $this->assertStringContainsString('/ipmi-proxy/create-session/3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01', (string) $this->lastRequest()->getUri());
     }
 
     public function testBaremetalMonitoring(): void
@@ -453,12 +453,12 @@ class CubepathClientTest extends TestCase
             new Response(200, [], '{"detail": "OK"}'),
         ]);
 
-        $client->baremetal()->monitoringEnable(5);
-        $this->assertStringContainsString('/baremetal/5/monitoring?enable=true', (string) $this->lastRequest()->getUri());
+        $client->baremetal()->monitoringEnable('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01');
+        $this->assertStringContainsString('/baremetal/3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01/monitoring?enable=true', (string) $this->lastRequest()->getUri());
         $this->assertEquals('PUT', $this->lastRequest()->getMethod());
 
-        $client->baremetal()->monitoringDisable(5);
-        $this->assertStringContainsString('/baremetal/5/monitoring?enable=false', (string) $this->lastRequest()->getUri());
+        $client->baremetal()->monitoringDisable('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01');
+        $this->assertStringContainsString('/baremetal/3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01/monitoring?enable=false', (string) $this->lastRequest()->getUri());
     }
 
     // --- Load Balancer Tests ---

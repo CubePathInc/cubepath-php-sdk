@@ -3,6 +3,7 @@
 namespace Cubepath\Services;
 
 use Cubepath\APIError;
+use Cubepath\BaremetalRef;
 use Cubepath\CubepathClient;
 
 class LoadBalancerService
@@ -115,9 +116,12 @@ class LoadBalancerService
 
     // --- Targets ---
 
+    /**
+     * Add a target to a listener. For a baremetal server, target_uuid is the server uuid.
+     */
     public function addTarget(string $lbUUID, string $listenerUUID, array $params): array
     {
-        return $this->client->post("/loadbalancer/{$lbUUID}/listeners/{$listenerUUID}/targets", $params);
+        return $this->client->post("/loadbalancer/{$lbUUID}/listeners/{$listenerUUID}/targets", self::checkTarget($params));
     }
 
     public function updateTarget(string $lbUUID, string $listenerUUID, string $targetUUID, array $params): array
@@ -135,14 +139,25 @@ class LoadBalancerService
      *
      * @param string $lbUUID
      * @param string $listenerUUID
-     * @param array  $targets List of {target_type, target_uuid, port, weight, enabled}; for a baremetal server target_uuid is the server NUMBER (not the uuid)
+     * @param array  $targets List of {target_type, target_uuid, port, weight, enabled}; for a baremetal server target_uuid is the server uuid
      * @return array Contains detail, targets
      */
     public function addTargets(string $lbUUID, string $listenerUUID, array $targets): array
     {
         return $this->client->post("/loadbalancer/{$lbUUID}/listeners/{$listenerUUID}/targets/batch", [
-            'targets' => array_values($targets),
+            'targets' => array_map([self::class, 'checkTarget'], array_values($targets)),
         ]);
+    }
+
+    /**
+     * A baremetal target must be the server uuid, sent in lower case.
+     */
+    private static function checkTarget(array $target): array
+    {
+        if (array_key_exists('target_uuid', $target)) {
+            $target['target_uuid'] = BaremetalRef::target($target['target_type'] ?? null, $target['target_uuid']);
+        }
+        return $target;
     }
 
     public function drainTarget(string $lbUUID, string $listenerUUID, string $targetUUID): array

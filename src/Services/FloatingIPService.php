@@ -53,7 +53,7 @@ class FloatingIPService
      * Assign a floating IP to a resource (VPS or baremetal).
      *
      * @param string $resourceType "vps" or "baremetal"
-     * @param int|string $resourceId Resource ID. For "baremetal" the server number or uuid; for "vps" the VPS ID
+     * @param int|string $resourceId Resource ID. For "baremetal" the server uuid; for "vps" the VPS ID
      * @param string $address      IP address to assign
      * @return array
      */

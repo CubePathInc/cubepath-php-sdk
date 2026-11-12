@@ -2,6 +2,7 @@
 
 namespace Cubepath\Services;
 
+use Cubepath\BaremetalRef;
 use Cubepath\CubepathClient;
 
 class NetworkService
@@ -86,13 +87,16 @@ class NetworkService
      * @param array $params {
      *     @type string $destination    CIDR destination (e.g., "192.168.1.0/24")
      *     @type string $next_hop_type  Next-hop type: "ip", "vps", or "baremetal"
-     *     @type string $next_hop_target  IP address, VPS ID or baremetal server NUMBER of the next hop (not the uuid)
+     *     @type string $next_hop_target  IP address, VPS ID or baremetal server uuid of the next hop
      *     @type string $description    Human-readable description (optional)
      * }
      * @return array Contains route id, detail
      */
     public function createRoute(int $networkId, array $params): array
     {
+        if (array_key_exists('next_hop_target', $params)) {
+            $params['next_hop_target'] = BaremetalRef::target($params['next_hop_type'] ?? null, $params['next_hop_target']);
+        }
         return $this->client->post("/networks/{$networkId}/routes", $params);
     }
 
@@ -142,7 +146,7 @@ class NetworkService
      * @param int   $networkId
      * @param array $params {
      *     @type string $peer_type   "ip", "vps" or "baremetal" (required)
-     *     @type string $peer_target Private IP, or the VPS ID or baremetal server NUMBER (required, not the uuid)
+     *     @type string $peer_target Private IP, VPS ID or baremetal server uuid (required)
      *     @type int    $remote_asn  ASN of the peer, not 64512 (required)
      *     @type int    $max_prefix  Max prefixes accepted (optional, default 100)
      *     @type string $description (optional)
@@ -151,6 +155,9 @@ class NetworkService
      */
     public function createBGPPeer(int $networkId, array $params): array
     {
+        if (array_key_exists('peer_target', $params)) {
+            $params['peer_target'] = BaremetalRef::target($params['peer_type'] ?? null, $params['peer_target']);
+        }
         return $this->client->post("/networks/{$networkId}/bgp-peers", $params);
     }
 

@@ -12,8 +12,8 @@ use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 
 /**
- * A baremetal server is named by its number or its uuid. The client must work against the API
- * of today (id integer, no uuid) and the one after the cutover (id integer plus uuid).
+ * A baremetal server is named by its uuid: the API returns it as "id" (and "uuid") and takes
+ * nothing else. A server number is refused before any request.
  */
 class BaremetalReferenceTest extends TestCase
 {
@@ -51,13 +51,10 @@ class BaremetalReferenceTest extends TestCase
         return new Response(200, [], json_encode([['project' => ['id' => 1], 'baremetals' => $baremetals]]));
     }
 
-    /** @return array<string, array{0:mixed,1:string}> */
+    /** @return array<string, array{0:string,1:string}> */
     public function validRefs(): array
     {
         return [
-            'int' => [5, '5'],
-            'digits' => ['5', '5'],
-            'zero padded' => ['005', '005'],
             'uuid' => [self::UUID, self::UUID],
             'uuid upper case' => [strtoupper(self::UUID), self::UUID],
         ];
@@ -65,9 +62,8 @@ class BaremetalReferenceTest extends TestCase
 
     /**
      * @dataProvider validRefs
-     * @param mixed $input
      */
-    public function testEveryMethodPutsTheReferenceInTheUrl($input, string $expected): void
+    public function testEveryMethodPutsTheUuidInTheUrl(string $input, string $expected): void
     {
         $bm = $this->client($this->ok(17))->baremetal();
 
@@ -107,32 +103,19 @@ class BaremetalReferenceTest extends TestCase
         $this->assertSame("/baremetal/{$expected}/monitoring", $this->path());
     }
 
-    public function testUuidStartingWithADigitIsNeverTurnedIntoServerThree(): void
-    {
-        $bm = $this->client($this->ok(1))->baremetal();
-        $bm->power(self::UUID, 'start');
-        $this->assertSame('/baremetal/' . self::UUID . '/power/start', $this->path());
-        $this->assertStringNotContainsString('/baremetal/3/', $this->path());
-    }
-
     /** @return array<string, array{0:mixed}> */
     public function invalidRefs(): array
     {
         return [
             'empty' => [''],
+            'server number' => ['5'],
+            'server number as int' => [5],
+            'zero padded number' => ['005'],
             'text' => ['abc'],
-            'prefix digits' => ['3abc'],
             'uuid prefix and tail' => [self::UUID . 'x'],
             'uuid without hyphens' => [str_replace('-', '', self::UUID)],
             'uuid with newline' => [self::UUID . "\n"],
-            'number with newline' => ["3\n"],
-            'number with space' => [' 3'],
-            'negative int' => [-1],
-            'negative text' => ['-1'],
-            'float' => [3.5],
-            'null' => [null],
-            'bool' => [true],
-            'array' => [[3]],
+            'uuid with space' => [' ' . self::UUID],
             'path traversal' => ['5/../6'],
             'query' => ['5?x=1'],
         ];
@@ -149,102 +132,54 @@ class BaremetalReferenceTest extends TestCase
             $bm->power($input, 'reboot');
             $this->fail('expected InvalidArgumentException');
         } catch (\InvalidArgumentException $e) {
-            $this->assertStringContainsString('number or a uuid', $e->getMessage());
+            $this->assertStringContainsString('must be a uuid', $e->getMessage());
         }
         $this->assertCount(0, $this->history);
     }
 
-    public function testGetAndReinstallStatusAndBmcSensorsRejectInvalidReferences(): void
+    public function testGetAndReinstallStatusAndBmcSensorsRejectANumber(): void
     {
         $bm = $this->client($this->ok(1))->baremetal();
         foreach (['get', 'reinstallStatus', 'bmcSensors'] as $method) {
             try {
-                $bm->$method('nope');
-                $this->fail("{$method} accepted an invalid reference");
+                $bm->$method('9');
+                $this->fail("{$method} accepted a server number");
             } catch (\InvalidArgumentException $e) {
-                $this->assertStringContainsString('number or a uuid', $e->getMessage());
+                $this->assertStringContainsString('must be a uuid', $e->getMessage());
             }
         }
         $this->assertCount(0, $this->history);
     }
 
-    public function testGetByNumberAgainstTheAPIOfToday(): void
-    {
-        $bm = $this->client([$this->projects([['id' => 4, 'hostname' => 'a'], ['id' => 5, 'hostname' => 'b']])])->baremetal();
-        $this->assertSame('b', $bm->get(5)['hostname']);
-    }
-
-    public function testGetByNumberTextAgainstTheAPIOfToday(): void
-    {
-        $bm = $this->client([$this->projects([['id' => 5, 'hostname' => 'b']])])->baremetal();
-        $this->assertSame('b', $bm->get('5')['hostname']);
-    }
-
-    public function testGetMatchesANumericStringId(): void
-    {
-        $bm = $this->client([$this->projects([['id' => '5', 'hostname' => 'b']])])->baremetal();
-        $this->assertSame('b', $bm->get(5)['hostname']);
-    }
-
-    public function testGetByNumberAgainstThePostCutoverAPI(): void
-    {
-        $bm = $this->client([$this->projects([
-            ['id' => 4, 'uuid' => '11111111-1111-4111-8111-111111111111', 'hostname' => 'a'],
-            ['id' => 5, 'uuid' => self::UUID, 'hostname' => 'b'],
-        ])])->baremetal();
-        $this->assertSame('b', $bm->get(5)['hostname']);
-    }
-
     public function testGetByUuidAnyCase(): void
     {
+        $other = '11111111-1111-4111-8111-111111111111';
         $list = [
-            ['id' => 4, 'uuid' => '11111111-1111-4111-8111-111111111111', 'hostname' => 'a'],
-            ['id' => 5, 'uuid' => self::UUID, 'hostname' => 'b'],
+            ['id' => $other, 'uuid' => $other, 'hostname' => 'a'],
+            ['id' => self::UUID, 'uuid' => self::UUID, 'hostname' => 'b'],
         ];
         $bm = $this->client([$this->projects($list), $this->projects($list)])->baremetal();
         $this->assertSame('b', $bm->get(self::UUID)['hostname']);
         $this->assertSame('b', $bm->get(strtoupper(self::UUID))['hostname']);
     }
 
-    public function testGetByUuidFindsNothingOnTheAPIOfToday(): void
-    {
-        $bm = $this->client([$this->projects([['id' => 3, 'hostname' => 'three']])])->baremetal();
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('not found');
-        $bm->get(self::UUID);
-    }
-
-    public function testGetNeverMatchesAUuidThatStartsWithADigitToTheServerOfThatNumber(): void
-    {
-        $bm = $this->client([$this->projects([['id' => 3, 'uuid' => '99999999-1111-4111-8111-111111111111', 'hostname' => 'three']])])->baremetal();
-        $this->expectException(\RuntimeException::class);
-        $bm->get(self::UUID);
-    }
-
-    public function testGetIgnoresServersWithoutUuidOrId(): void
-    {
-        $bm = $this->client([$this->projects([['hostname' => 'x'], ['id' => 8, 'uuid' => null, 'hostname' => 'y']])])->baremetal();
-        $this->assertSame('y', $bm->get(8)['hostname']);
-    }
-
-    public function testGetNotFoundNamesTheReference(): void
+    public function testGetNotFoundNamesTheUuid(): void
     {
         $bm = $this->client([$this->projects([])])->baremetal();
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Baremetal server 9 not found');
-        $bm->get(9);
+        $this->expectExceptionMessage('Baremetal server ' . self::UUID . ' not found');
+        $bm->get(self::UUID);
     }
 
     public function testReinstallStatusByUuid(): void
     {
-        $bm = $this->client([$this->projects([['id' => 5, 'uuid' => self::UUID, 'status' => 'deploying']])])->baremetal();
+        $bm = $this->client([$this->projects([['id' => self::UUID, 'uuid' => self::UUID, 'status' => 'deploying']])])->baremetal();
         $st = $bm->reinstallStatus(self::UUID);
         $this->assertTrue($st['is_reinstalling']);
     }
 
-    /** @dataProvider validRefs
-     *  @param mixed $input */
-    public function testBmcSensorsSendsTheReferenceAsText($input, string $expected): void
+    /** @dataProvider validRefs */
+    public function testBmcSensorsSendsTheUuid(string $input, string $expected): void
     {
         $body = '{"data":{"baremetal":{"sensors":{"ipmiAvailable":true,"powerOn":true,"lastSeen":1,"temperatures":[],"fans":[]}}}}';
         $bm = $this->client([new Response(200, [], $body)])->baremetal();
@@ -265,28 +200,26 @@ class BaremetalReferenceTest extends TestCase
         }
     }
 
-    public function testFloatingIPAssignBaremetalByNumberAndUuid(): void
+    public function testFloatingIPAssignBaremetalByUuid(): void
     {
-        $fip = $this->client($this->ok(4))->floatingIPs();
-
-        $fip->assign('baremetal', 7, '1.2.3.4');
-        $this->assertSame('/floating_ips/assign/baremetal/7', $this->path());
-        $fip->assign('baremetal', '7', '1.2.3.4');
-        $this->assertSame('/floating_ips/assign/baremetal/7', $this->path());
+        $fip = $this->client($this->ok(1))->floatingIPs();
         $fip->assign('baremetal', strtoupper(self::UUID), '1.2.3.4');
         $this->assertSame('/floating_ips/assign/baremetal/' . self::UUID, $this->path());
         $this->assertSame('address=1.2.3.4', end($this->history)['request']->getUri()->getQuery());
     }
 
-    public function testFloatingIPAssignBaremetalRejectsInvalidReference(): void
+    public function testFloatingIPAssignBaremetalRejectsANumber(): void
     {
         $fip = $this->client($this->ok(1))->floatingIPs();
-        $this->expectException(\InvalidArgumentException::class);
-        try {
-            $fip->assign('baremetal', 'abc', '1.2.3.4');
-        } finally {
-            $this->assertCount(0, $this->history);
+        foreach ([7, '7', 'abc'] as $bad) {
+            try {
+                $fip->assign('baremetal', $bad, '1.2.3.4');
+                $this->fail('a server number is not a baremetal reference');
+            } catch (\InvalidArgumentException $e) {
+                $this->assertStringContainsString('must be a uuid', $e->getMessage());
+            }
         }
+        $this->assertCount(0, $this->history);
     }
 
     public function testFloatingIPAssignVpsKeepsTheIntegerRule(): void
@@ -309,15 +242,63 @@ class BaremetalReferenceTest extends TestCase
         }
     }
 
+    public function testBaremetalTargetsTakeTheUuid(): void
+    {
+        $c = $this->client($this->ok(5));
+        $upper = strtoupper(self::UUID);
+        $c->networks()->createRoute(5, ['destination' => '10.1.0.0/24', 'next_hop_type' => 'baremetal', 'next_hop_target' => $upper]);
+        $c->networks()->createBGPPeer(5, ['peer_type' => 'baremetal', 'peer_target' => $upper, 'remote_asn' => 65001]);
+        $c->loadBalancer()->addTarget('lb', 'l', ['target_type' => 'baremetal', 'target_uuid' => $upper, 'weight' => 100]);
+        $c->loadBalancer()->addTargets('lb', 'l', [['target_type' => 'vps', 'target_uuid' => '7']]);
+        $c->cloudAlerts()->create(['project_id' => 1, 'name' => 'a', 'target_type' => 'baremetal', 'target_id' => $upper]);
+        $bodies = array_map(function ($h) {
+            return json_decode((string) $h['request']->getBody(), true);
+        }, $this->history);
+        $this->assertSame(self::UUID, $bodies[0]['next_hop_target']);
+        $this->assertSame(self::UUID, $bodies[1]['peer_target']);
+        $this->assertSame(self::UUID, $bodies[2]['target_uuid']);
+        $this->assertSame('7', $bodies[3]['targets'][0]['target_uuid']);
+        $this->assertSame(self::UUID, $bodies[4]['target_id']);
+    }
+
+    public function testBaremetalTargetsRejectANumberBeforeAnyRequest(): void
+    {
+        $c = $this->client($this->ok(1));
+        $calls = [
+            function () use ($c) {
+                $c->networks()->createRoute(5, ['destination' => '10.1.0.0/24', 'next_hop_type' => 'baremetal', 'next_hop_target' => '12']);
+            },
+            function () use ($c) {
+                $c->networks()->createBGPPeer(5, ['peer_type' => 'baremetal', 'peer_target' => '12', 'remote_asn' => 65001]);
+            },
+            function () use ($c) {
+                $c->loadBalancer()->addTarget('lb', 'l', ['target_type' => 'baremetal', 'target_uuid' => '12', 'weight' => 100]);
+            },
+            function () use ($c) {
+                $c->loadBalancer()->addTargets('lb', 'l', [['target_type' => 'baremetal', 'target_uuid' => '12']]);
+            },
+            function () use ($c) {
+                $c->cloudAlerts()->update('a1', ['target_type' => 'baremetal', 'target_id' => '12']);
+            },
+        ];
+        foreach ($calls as $call) {
+            try {
+                $call();
+                $this->fail('a server number is not a baremetal target');
+            } catch (\InvalidArgumentException $e) {
+                $this->assertStringContainsString('must be a uuid', $e->getMessage());
+            }
+        }
+        $this->assertCount(0, $this->history);
+    }
+
     public function testNormalizeAndMatchesHelpers(): void
     {
-        $this->assertSame('12', BaremetalRef::normalize(12));
         $this->assertSame(self::UUID, BaremetalRef::normalize(strtoupper(self::UUID)));
-        $this->assertTrue(BaremetalRef::matches(['id' => 12], '12'));
-        $this->assertTrue(BaremetalRef::matches(['id' => '12'], '012'));
-        $this->assertFalse(BaremetalRef::matches(['id' => 12], '120'));
-        $this->assertFalse(BaremetalRef::matches(['id' => 0], '1'));
-        $this->assertFalse(BaremetalRef::matches(['id' => 12], self::UUID));
-        $this->assertTrue(BaremetalRef::matches(['id' => 12, 'uuid' => strtoupper(self::UUID)], self::UUID));
+        $this->assertTrue(BaremetalRef::matches(['id' => strtoupper(self::UUID)], self::UUID));
+        $this->assertFalse(BaremetalRef::matches(['id' => 12], '12'));
+        $this->assertFalse(BaremetalRef::matches(['uuid' => self::UUID], self::UUID));
+        $this->assertSame('7', BaremetalRef::target('vps', '7'));
+        $this->assertSame(self::UUID, BaremetalRef::target('baremetal', strtoupper(self::UUID)));
     }
 }

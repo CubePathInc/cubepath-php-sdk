@@ -119,18 +119,18 @@ class StaleEndpointsTest extends TestCase
     {
         $c = $this->client([
             new Response(200, [], '{"data":{"baremetal":{"sensors":{"ipmiAvailable":true,"powerOn":true,"lastSeen":100,"temperatures":[{"name":"CPU","value":41,"unit":"CELSIUS"}],"fans":[]}}}}'),
-            new Response(200, [], '[{"project":{"id":1},"baremetals":[{"id":9,"status":"deploying"}]}]'),
+            new Response(200, [], '[{"project":{"id":1},"baremetals":[{"id":"3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01","uuid":"3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01","status":"deploying"}]}]'),
             new Response(200, [], '{"detail":"cancelled"}'),
         ]);
-        $s = $c->baremetal()->bmcSensors(9);
-        $this->assertEquals(['id' => '9'], $this->body(0)['variables']);
+        $s = $c->baremetal()->bmcSensors('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01');
+        $this->assertEquals(['id' => '3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01'], $this->body(0)['variables']);
         $this->assertTrue($s['ipmi_available']);
         $this->assertEquals(100, $s['last_seen']);
         $this->assertEquals('CELSIUS', $s['sensors']['temperatures'][0]['unit']);
-        $st = $c->baremetal()->reinstallStatus(9);
+        $st = $c->baremetal()->reinstallStatus('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01');
         $this->assertTrue($st['is_reinstalling']);
-        $c->baremetal()->cancelReinstall(9);
+        $c->baremetal()->cancelReinstall('3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01');
         $this->assertEquals('DELETE', $this->req(2)->getMethod());
-        $this->assertEquals('/baremetal/9/reinstall', $this->req(2)->getUri()->getPath());
+        $this->assertEquals('/baremetal/3f2a8c10-1b2c-4d3e-8f4a-5b6c7d8e9f01/reinstall', $this->req(2)->getUri()->getPath());
     }
 }
