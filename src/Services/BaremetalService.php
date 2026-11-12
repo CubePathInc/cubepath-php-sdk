@@ -150,7 +150,7 @@ class BaremetalService
     /**
      * Add SSH keys to a baremetal server.
      *
-     * @param int|string $baremetalId Server number or uuid
+     * @param string $baremetalId Server uuid
      * @param int[] $sshKeyIds
      * @return array
      */
@@ -203,7 +203,7 @@ class BaremetalService
     /**
      * Update a baremetal server.
      *
-     * @param int|string $baremetalId Server number or uuid
+     * @param string $baremetalId Server uuid
      * @param array $params {
      *     @type string $hostname New hostname (optional)
      *     @type string $label    New label (optional)
@@ -220,7 +220,7 @@ class BaremetalService
     /**
      * Control baremetal power state.
      *
-     * @param int|string $baremetalId Server number or uuid
+     * @param string $baremetalId Server uuid
      * @param string $action One of: start, stop, reboot, reset
      * @return array
      */
@@ -301,7 +301,7 @@ class BaremetalService
     /**
      * Reinstall OS on baremetal server.
      *
-     * @param int|string $baremetalId Server number or uuid
+     * @param string $baremetalId Server uuid
      * @param array $params {
      *     @type string $os_name          OS name
      *     @type string $password         Root password
